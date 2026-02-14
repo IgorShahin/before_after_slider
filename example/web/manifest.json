@@ -1,6 +1,6 @@
 {
-    "name": "flutter_before_after_example",
-    "short_name": "flutter_before_after_example",
+    "name": "before_after_slider_example",
+    "short_name": "before_after_slider_example",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

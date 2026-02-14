@@ -1,4 +1,4 @@
-# flutter_before_after
+# before_after_slider
 
 Before/after comparison widget for Flutter with a draggable divider, zoom, pan,
 custom overlays, and label behavior control.
@@ -29,7 +29,7 @@ any side-by-side state comparison UI.
 
 ```yaml
 dependencies:
-  flutter_before_after: ^1.0.0
+  before_after_slider: ^1.0.0
 ```
 
 ```bash
@@ -39,7 +39,7 @@ flutter pub get
 ## Quick Start
 
 ```dart
-import 'package:flutter_before_after/flutter_before_after.dart';
+import 'package:before_after_slider/before_after_slider.dart';
 
 BeforeAfterImage(
   beforeImage: const AssetImage('assets/before.jpg'),
@@ -128,8 +128,8 @@ Interactive demo app is included in:
 
 Issues and pull requests are welcome:
 
-- Repository: <https://github.com/IgorShahin/flutter_before_after>
-- Issues: <https://github.com/IgorShahin/flutter_before_after/issues>
+- Repository: <https://github.com/IgorShahin/before_after_slider>
+- Issues: <https://github.com/IgorShahin/before_after_slider/issues>
 
 ## License
 

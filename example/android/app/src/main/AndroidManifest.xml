@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="flutter_before_after_example"
+        android:label="before_after_slider_example"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

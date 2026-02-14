@@ -1,4 +1,4 @@
-# flutter_before_after_example
+# before_after_slider_example
 
 A new Flutter project.
 

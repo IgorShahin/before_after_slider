@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_before_after/flutter_before_after.dart';
+import 'package:before_after_slider/before_after_slider.dart';
 
 void main() {
   group('ZoomController', () {

@@ -1,5 +1,5 @@
-name: flutter_before_after_example
-description: Example app demonstrating flutter_before_after package.
+name: before_after_slider_example
+description: Example app demonstrating before_after_slider package.
 
 publish_to: 'none'
 
@@ -11,7 +11,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_before_after:
+  before_after_slider:
     path: ../
 
 dev_dependencies:

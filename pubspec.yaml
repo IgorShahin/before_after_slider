@@ -1,9 +1,9 @@
-name: flutter_before_after
+name: before_after_slider
 description: Compare before/after images or widgets with a smooth draggable divider, pinch zoom, pan, and customizable overlay UI.
 version: 1.0.0
-homepage: https://github.com/IgorShahin/flutter_before_after
-repository: https://github.com/IgorShahin/flutter_before_after
-issue_tracker: https://github.com/IgorShahin/flutter_before_after/issues
+homepage: https://github.com/IgorShahin/before_after_slider
+repository: https://github.com/IgorShahin/before_after_slider
+issue_tracker: https://github.com/IgorShahin/before_after_slider/issues
 topics:
   - image-comparison
   - before-after
