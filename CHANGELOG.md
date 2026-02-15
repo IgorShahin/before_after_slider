@@ -3,6 +3,8 @@
 - BREAKING: removed `BeforeAfterImage` and `BeforeAfterLayout`.
 - BREAKING: `BeforeAfter` is now the single public widget API:
   - `BeforeAfter(beforeChild: ..., afterChild: ...)`
+- BREAKING: removed direct `beforeLabel` and `afterLabel` params.
+  - Use `beforeLabelBuilder` and `afterLabelBuilder`.
 - Inlined comparison implementation into `BeforeAfter` and removed extra wrapper/core layers.
 - Updated docs and examples for the new API.
 

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 /// Use this controller to programmatically control the zoom state
 /// of [BeforeAfter] widget.
 class ZoomController extends ChangeNotifier {
-  /// Creates a zoom controller with the given initial values.
   ZoomController({
     double initialZoom = 1.0,
     Offset initialPan = Offset.zero,
@@ -138,10 +137,8 @@ class ZoomController extends ChangeNotifier {
   }
 }
 
-/// Data class holding zoom, pan, and rotation values.
 @immutable
 class ZoomData {
-  /// Creates zoom data with the given values.
   const ZoomData({
     this.zoom = 1.0,
     this.pan = Offset.zero,
@@ -157,7 +154,6 @@ class ZoomData {
   /// The rotation in degrees.
   final double rotation;
 
-  /// Creates a copy with the given fields replaced.
   ZoomData copyWith({
     double? zoom,
     Offset? pan,

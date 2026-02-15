@@ -14,7 +14,7 @@ any side-by-side state comparison UI.
 - Pinch-to-zoom and pan gestures
 - Double-tap to reset zoom
 - Custom overlay style (`OverlayStyle`) or fully custom overlay builder
-- Custom labels (`beforeLabel`, `afterLabel`)
+- Custom labels (`beforeLabelBuilder`, `afterLabelBuilder`)
 - `fixedLabels` mode to keep labels static during zoom/pan
 - External `ZoomController` for programmatic control
 - Controlled/uncontrolled progress modes
@@ -115,7 +115,7 @@ controller.reset();
 - `fixedLabels`
 - `contentOrder`
 - `overlayStyle`
-- `beforeLabel`, `afterLabel`
+- `beforeLabelBuilder`, `afterLabelBuilder`
 - `overlay` (custom builder)
 - `zoomController`
 

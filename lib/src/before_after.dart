@@ -23,8 +23,6 @@ class BeforeAfter extends StatefulWidget {
     this.enableZoom = true,
     this.contentOrder = ContentOrder.beforeAfter,
     this.overlayStyle = const OverlayStyle(),
-    this.beforeLabel,
-    this.afterLabel,
     this.beforeLabelBuilder,
     this.afterLabelBuilder,
     this.overlay,
@@ -62,12 +60,6 @@ class BeforeAfter extends StatefulWidget {
 
   /// Style configuration for the overlay (divider and thumb).
   final OverlayStyle overlayStyle;
-
-  /// Custom widget for the "before" label. If null, uses default [BeforeLabel].
-  final Widget? beforeLabel;
-
-  /// Custom widget for the "after" label. If null, uses default [AfterLabel].
-  final Widget? afterLabel;
 
   /// Builder for the "before" label widget.
   final Widget Function(BuildContext context)? beforeLabelBuilder;
@@ -167,11 +159,9 @@ class _BeforeAfterState extends State<BeforeAfter> {
       return (
         leftChild: widget.beforeChild,
         rightChild: widget.afterChild,
-        leftLabel: widget.beforeLabel ??
-            widget.beforeLabelBuilder?.call(context) ??
+        leftLabel: widget.beforeLabelBuilder?.call(context) ??
             BeforeLabel(contentOrder: widget.contentOrder),
-        rightLabel: widget.afterLabel ??
-            widget.afterLabelBuilder?.call(context) ??
+        rightLabel: widget.afterLabelBuilder?.call(context) ??
             AfterLabel(contentOrder: widget.contentOrder),
       );
     }
@@ -179,11 +169,9 @@ class _BeforeAfterState extends State<BeforeAfter> {
     return (
       leftChild: widget.afterChild,
       rightChild: widget.beforeChild,
-      leftLabel: widget.afterLabel ??
-          widget.afterLabelBuilder?.call(context) ??
+      leftLabel: widget.afterLabelBuilder?.call(context) ??
           AfterLabel(contentOrder: widget.contentOrder),
-      rightLabel: widget.beforeLabel ??
-          widget.beforeLabelBuilder?.call(context) ??
+      rightLabel: widget.beforeLabelBuilder?.call(context) ??
           BeforeLabel(contentOrder: widget.contentOrder),
     );
   }
