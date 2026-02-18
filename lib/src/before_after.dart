@@ -228,6 +228,7 @@ class _BeforeAfterState extends State<BeforeAfter> {
     _progressNotifier = ValueNotifier<double>(widget.progress ?? 0.5);
     _containerVisualScaleTargetNotifier = ValueNotifier<double>(1.0);
     _initZoomController();
+    _zoomController.addListener(_onZoomControllerChanged);
   }
 
   @override
@@ -237,10 +238,12 @@ class _BeforeAfterState extends State<BeforeAfter> {
       _progressNotifier.value = widget.progress!;
     }
     if (widget.zoomController != oldWidget.zoomController) {
+      _zoomController.removeListener(_onZoomControllerChanged);
       if (_ownsZoomController) {
         _zoomController.dispose();
       }
       _initZoomController();
+      _zoomController.addListener(_onZoomControllerChanged);
     }
   }
 
@@ -248,6 +251,7 @@ class _BeforeAfterState extends State<BeforeAfter> {
   void dispose() {
     _progressNotifier.dispose();
     _containerVisualScaleTargetNotifier.dispose();
+    _zoomController.removeListener(_onZoomControllerChanged);
     if (_ownsZoomController) {
       _zoomController.dispose();
     }
@@ -269,7 +273,8 @@ class _BeforeAfterState extends State<BeforeAfter> {
       _containerVisualScaleTargetNotifier.value;
 
   void _setContainerVisualScaleTarget(double value) {
-    final clamped = value.clamp(0.0, 1.0);
+    final clamped =
+        value.clamp(_minContainerVisualScale, _maxContainerVisualScale);
     if ((_containerVisualScaleTargetNotifier.value - clamped).abs() > 0.0005) {
       _containerVisualScaleTargetNotifier.value = clamped;
     }
@@ -301,6 +306,12 @@ class _BeforeAfterState extends State<BeforeAfter> {
     });
   }
 
+  void _onZoomControllerChanged() {
+    if (!mounted) return;
+    if (_effectiveEnableContainerScaleOnZoom) return;
+    _updateContainerScaleFromZoom();
+  }
+
   @override
   Widget build(BuildContext context) {
     final sideContent = _resolveSideContent(context);
@@ -312,62 +323,76 @@ class _BeforeAfterState extends State<BeforeAfter> {
         return ValueListenableBuilder<double>(
           valueListenable: _progressNotifier,
           builder: (context, progress, _) {
+            Widget buildSceneWithScale(double visualScale) {
+              final visual = _visualGeometry(fullSize, visualScale);
+
+              final scene = _BeforeAfterScene(
+                fullSize: fullSize,
+                visual: visual,
+                progress: progress,
+                sideContent: sideContent,
+                enableZoom: _isZoomEnabled,
+                showLabels: _effectiveShowLabels,
+                labelBehavior: _effectiveLabelBehavior,
+                enableReverseZoomVisualEffect:
+                    widget.enableReverseZoomVisualEffect,
+                reverseZoomEffectBorderRadius:
+                    widget.reverseZoomEffectBorderRadius,
+                overlayBuilder: widget.overlay,
+                overlayStyle: widget.overlayStyle,
+                zoomController: _zoomController,
+              );
+
+              return GestureDetector(
+                onScaleStart: _onScaleStart,
+                onScaleUpdate: (details) => _onScaleUpdate(details, fullSize),
+                onScaleEnd: _onScaleEnd,
+                onDoubleTapDown: _isZoomEnabled && _isDoubleTapZoomEnabled
+                    ? _onDoubleTapDown
+                    : null,
+                onDoubleTap: _isZoomEnabled && _isDoubleTapZoomEnabled
+                    ? () => _onDoubleTap(fullSize)
+                    : null,
+                child: Listener(
+                  onPointerDown: _onPointerDown,
+                  onPointerUp: _onPointerUp,
+                  onPointerCancel: _onPointerCancel,
+                  onPointerSignal: (event) => _onPointerSignal(event, fullSize),
+                  onPointerPanZoomStart: _onPointerPanZoomStart,
+                  onPointerPanZoomUpdate: (event) =>
+                      _onPointerPanZoomUpdate(event, fullSize),
+                  onPointerPanZoomEnd: _onPointerPanZoomEnd,
+                  child: scene,
+                ),
+              );
+            }
+
+            if (_effectiveEnableContainerScaleOnZoom) {
+              return AnimatedBuilder(
+                animation: _zoomController,
+                builder: (context, _) {
+                  final visualScale = _targetContainerGrowScaleFromZoom(
+                    _zoomController.effectiveZoom,
+                  );
+                  return buildSceneWithScale(visualScale);
+                },
+              );
+            }
+
             return ValueListenableBuilder<double>(
               valueListenable: _containerVisualScaleTargetNotifier,
               builder: (context, visualScaleTarget, _) {
                 return TweenAnimationBuilder<double>(
                   tween: Tween<double>(
                     begin: 1.0,
-                    end: widget.enableReverseZoomVisualEffect
+                    end: _hasContainerVisualScaleEffect
                         ? visualScaleTarget
                         : 1.0,
                   ),
                   duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOutCubic,
+                  curve: Curves.easeInOutCubic,
                   builder: (context, visualScale, _) {
-                    final visual = _visualGeometry(fullSize, visualScale);
-
-                    final scene = _BeforeAfterScene(
-                      fullSize: fullSize,
-                      visual: visual,
-                      progress: progress,
-                      sideContent: sideContent,
-                      enableZoom: _isZoomEnabled,
-                      showLabels: _effectiveShowLabels,
-                      labelBehavior: _effectiveLabelBehavior,
-                      enableReverseZoomVisualEffect:
-                          widget.enableReverseZoomVisualEffect,
-                      reverseZoomEffectBorderRadius:
-                          widget.reverseZoomEffectBorderRadius,
-                      overlayBuilder: widget.overlay,
-                      overlayStyle: widget.overlayStyle,
-                      zoomController: _zoomController,
-                    );
-
-                    return GestureDetector(
-                      onScaleStart: _onScaleStart,
-                      onScaleUpdate: (details) =>
-                          _onScaleUpdate(details, fullSize),
-                      onScaleEnd: _onScaleEnd,
-                      onDoubleTapDown: _isZoomEnabled && _isDoubleTapZoomEnabled
-                          ? _onDoubleTapDown
-                          : null,
-                      onDoubleTap: _isZoomEnabled && _isDoubleTapZoomEnabled
-                          ? () => _onDoubleTap(fullSize)
-                          : null,
-                      child: Listener(
-                        onPointerDown: _onPointerDown,
-                        onPointerUp: _onPointerUp,
-                        onPointerCancel: _onPointerCancel,
-                        onPointerSignal: (event) =>
-                            _onPointerSignal(event, fullSize),
-                        onPointerPanZoomStart: _onPointerPanZoomStart,
-                        onPointerPanZoomUpdate: (event) =>
-                            _onPointerPanZoomUpdate(event, fullSize),
-                        onPointerPanZoomEnd: _onPointerPanZoomEnd,
-                        child: scene,
-                      ),
-                    );
+                    return buildSceneWithScale(visualScale);
                   },
                 );
               },

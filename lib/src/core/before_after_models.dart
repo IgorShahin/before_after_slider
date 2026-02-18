@@ -6,12 +6,14 @@ class _VisualGeometry {
     required this.height,
     required this.offsetX,
     required this.offsetY,
+    required this.containerScale,
   });
 
   final double width;
   final double height;
   final double offsetX;
   final double offsetY;
+  final double containerScale;
 }
 
 class _SideContent {

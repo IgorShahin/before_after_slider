@@ -16,6 +16,9 @@ class BeforeAfterZoomOptions {
     this.doubleTapZoomScale = 3.0,
     this.doubleTapZoomDuration = const Duration(milliseconds: 420),
     this.doubleTapZoomCurve = Curves.easeInOutCubic,
+    this.enableContainerScaleOnZoom = false,
+    this.containerScaleMax = 1.12,
+    this.containerScaleZoomRange = 2.0,
   })  : assert(
           gestureZoomSmoothing > 0.0 && gestureZoomSmoothing <= 1.0,
           'gestureZoomSmoothing must be in (0.0, 1.0]',
@@ -27,6 +30,14 @@ class BeforeAfterZoomOptions {
         assert(
           doubleTapZoomScale >= 1.0,
           'doubleTapZoomScale must be >= 1.0',
+        ),
+        assert(
+          containerScaleMax >= 1.0 && containerScaleMax <= 1.6,
+          'containerScaleMax must be in [1.0, 1.6]',
+        ),
+        assert(
+          containerScaleZoomRange > 0.0,
+          'containerScaleZoomRange must be > 0.0',
         );
 
   final bool enabled;
@@ -38,4 +49,7 @@ class BeforeAfterZoomOptions {
   final double doubleTapZoomScale;
   final Duration doubleTapZoomDuration;
   final Curve doubleTapZoomCurve;
+  final bool enableContainerScaleOnZoom;
+  final double containerScaleMax;
+  final double containerScaleZoomRange;
 }

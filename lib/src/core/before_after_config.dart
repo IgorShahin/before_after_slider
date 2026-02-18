@@ -30,6 +30,25 @@ extension _BeforeAfterConfigX on _BeforeAfterState {
   Curve get _effectiveDoubleTapZoomCurve =>
       widget.zoomOptions?.doubleTapZoomCurve ?? widget.doubleTapZoomCurve;
 
+  bool get _effectiveEnableContainerScaleOnZoom =>
+      widget.zoomOptions?.enableContainerScaleOnZoom ?? false;
+
+  double get _effectiveContainerScaleMax =>
+      widget.zoomOptions?.containerScaleMax ?? 1.12;
+
+  double get _effectiveContainerScaleZoomRange =>
+      widget.zoomOptions?.containerScaleZoomRange ?? 2.0;
+
+  bool get _hasContainerVisualScaleEffect =>
+      widget.enableReverseZoomVisualEffect ||
+      _effectiveEnableContainerScaleOnZoom;
+
+  double get _minContainerVisualScale =>
+      widget.enableReverseZoomVisualEffect ? widget.reverseZoomMinScale : 1.0;
+
+  double get _maxContainerVisualScale =>
+      _effectiveEnableContainerScaleOnZoom ? _effectiveContainerScaleMax : 1.0;
+
   bool get _effectiveEnableProgressWithTouch =>
       widget.interactionOptions?.enableProgressWithTouch ??
       widget.enableProgressWithTouch;

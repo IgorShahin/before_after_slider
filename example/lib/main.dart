@@ -1,7 +1,5 @@
 import 'package:before_after_slider/before_after_slider.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 void main() {
   runApp(const DemoApp());
@@ -33,19 +31,9 @@ class DemoPage extends StatefulWidget {
 class _DemoPageState extends State<DemoPage> {
   final ZoomController _zoomController = ZoomController();
   double _progress = 0.5;
-  bool _isInBeforeAfterZone = false;
-  bool _lockPageScroll = false;
-
-  bool _isZoomModifierPressed() {
-    final pressed = HardwareKeyboard.instance.logicalKeysPressed;
-    final isMac = Theme.of(context).platform == TargetPlatform.macOS;
-    if (isMac) {
-      return pressed.contains(LogicalKeyboardKey.metaLeft) ||
-          pressed.contains(LogicalKeyboardKey.metaRight);
-    }
-    return pressed.contains(LogicalKeyboardKey.controlLeft) ||
-        pressed.contains(LogicalKeyboardKey.controlRight);
-  }
+  static const double _demoContainerScaleMax = 1.55;
+  static const double _demoContainerScaleZoomRange = 0.9;
+  static const double _sceneVerticalScaleFactor = 1.4;
 
   @override
   void dispose() {
@@ -61,134 +49,138 @@ class _DemoPageState extends State<DemoPage> {
         padding: const EdgeInsets.all(16),
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final maxDemoWidth = constraints.maxWidth.clamp(280.0, 960.0);
             return SingleChildScrollView(
-              physics: _lockPageScroll
-                  ? const NeverScrollableScrollPhysics()
-                  : const ClampingScrollPhysics(),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    AspectRatio(
-                      aspectRatio: 4 / 3,
-                      child: MouseRegion(
-                        onEnter: (_) {
-                          _isInBeforeAfterZone = true;
-                        },
-                        onExit: (_) {
-                          _isInBeforeAfterZone = false;
-                          if (_lockPageScroll) {
-                            setState(() => _lockPageScroll = false);
-                          }
-                        },
-                        child: Listener(
-                          onPointerSignal: (event) {
-                            if (!_isInBeforeAfterZone) return;
-                            // Wheel/Cmd zoom is resolved by BeforeAfter itself.
-                            // Keep page scroll lock disabled here.
-                            if (event is PointerScrollEvent &&
-                                !_isZoomModifierPressed() &&
-                                _lockPageScroll) {
-                              setState(() => _lockPageScroll = false);
-                            }
-                          },
-                          onPointerPanZoomStart: (_) {
-                            if (_isInBeforeAfterZone && !_lockPageScroll) {
-                              setState(() => _lockPageScroll = true);
-                            }
-                          },
-                          onPointerPanZoomUpdate: (_) {
-                            if (_isInBeforeAfterZone && !_lockPageScroll) {
-                              setState(() => _lockPageScroll = true);
-                            }
-                          },
-                          onPointerPanZoomEnd: (_) {
-                            if (_lockPageScroll) {
-                              setState(() => _lockPageScroll = false);
-                            }
-                          },
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: BeforeAfter(
-                              beforeChild: Image.asset(
-                                'assets/before.jpeg',
-                                fit: BoxFit.cover,
-                              ),
-                              afterChild: Image.asset(
-                                'assets/after.jpeg',
-                                fit: BoxFit.cover,
-                              ),
-                              progress: _progress,
-                              // showLabels: false,
-                              labelsOptions: BeforeAfterLabelsOptions(
-                                behavior: LabelBehavior.attachedToContent,
-                                beforeBuilder: (_) => Container(
-                                  margin: const EdgeInsets.all(10),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        Colors.black87.withValues(alpha: 0.85),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: const Text(
-                                    'Before',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: maxDemoWidth),
+                        child: LayoutBuilder(
+                          builder: (context, box) {
+                            final previewWidth = box.maxWidth;
+                            final previewHeight = previewWidth * 3 / 4;
+                            final maxScaleProgress =
+                                (_demoContainerScaleMax - 1.0).clamp(0.0, 1.0);
+                            final maxContentScaleY = 1.0 +
+                                maxScaleProgress * _sceneVerticalScaleFactor;
+                            final previewOverflowReserve =
+                                ((previewHeight * (maxContentScaleY - 1.0)) / 2)
+                                        .ceilToDouble() +
+                                    12;
+                            return SizedBox(
+                              width: previewWidth,
+                              height:
+                                  previewHeight + previewOverflowReserve * 2,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      top: previewOverflowReserve,
+                                      height: previewHeight,
+                                      child: BeforeAfter(
+                                        beforeChild: Image.asset(
+                                          'assets/before.jpeg',
+                                          fit: BoxFit.cover,
+                                        ),
+                                        afterChild: Image.asset(
+                                          'assets/after.jpeg',
+                                          fit: BoxFit.cover,
+                                        ),
+                                        progress: _progress,
+                                        labelsOptions: BeforeAfterLabelsOptions(
+                                          behavior:
+                                              LabelBehavior.attachedToContent,
+                                          beforeBuilder: (_) => Container(
+                                            margin: const EdgeInsets.all(10),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black87.withValues(
+                                                alpha: 0.85,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                            child: const Text(
+                                              'Before',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          afterBuilder: (_) => Container(
+                                            margin: const EdgeInsets.all(10),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue.shade700
+                                                  .withValues(alpha: 0.85),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                            child: const Text(
+                                              'After',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        interactionOptions:
+                                            const BeforeAfterInteractionOptions(
+                                          sliderDragMode:
+                                              SliderDragMode.fullOverlay,
+                                          sliderHitZone: SliderHitZone(
+                                            minLineHalfWidth: 18,
+                                            minThumbRadius: 30,
+                                          ),
+                                        ),
+                                        zoomOptions:
+                                            const BeforeAfterZoomOptions(
+                                          zoomPanSensitivity: 0.95,
+                                          enableContainerScaleOnZoom: true,
+                                          containerScaleMax:
+                                              _demoContainerScaleMax,
+                                          containerScaleZoomRange:
+                                              _demoContainerScaleZoomRange,
+                                          desktop: DesktopZoomOptions(
+                                            requiresModifier: true,
+                                            smoothing: 0.4,
+                                          ),
+                                        ),
+                                        enableReverseZoomVisualEffect: true,
+                                        reverseZoomEffectBorderRadius: 12,
+                                        onProgressChanged: (value) {
+                                          setState(() {
+                                            _progress = value;
+                                          });
+                                        },
+                                        zoomController: _zoomController,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                afterBuilder: (_) => Container(
-                                  margin: const EdgeInsets.all(10),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade700
-                                        .withValues(alpha: 0.85),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: const Text(
-                                    'After',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                                  ],
                                 ),
                               ),
-                              interactionOptions:
-                                  const BeforeAfterInteractionOptions(
-                                sliderDragMode: SliderDragMode.fullOverlay,
-                                sliderHitZone: SliderHitZone(
-                                  minLineHalfWidth: 18,
-                                  minThumbRadius: 30,
-                                ),
-                              ),
-                              zoomOptions: const BeforeAfterZoomOptions(
-                                zoomPanSensitivity: 0.95,
-                                desktop: DesktopZoomOptions(
-                                  requiresModifier: true,
-                                  smoothing: 0.4,
-                                ),
-                              ),
-                              onProgressChanged: (value) {
-                                setState(() {
-                                  _progress = value;
-                                });
-                              },
-                              zoomController: _zoomController,
-                            ),
-                          ),
+                            );
+                          },
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     Text('Progress: ${(_progress * 100).round()}%'),
                     Slider(
                       value: _progress,
