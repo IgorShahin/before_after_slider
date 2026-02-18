@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'desktop_zoom_options.dart';
+import 'zoom_runtime_options.dart';
 
 /// Grouped zoom configuration for [BeforeAfter].
 @immutable
@@ -10,6 +11,7 @@ class BeforeAfterZoomOptions {
     this.gestureZoomSmoothing = 1.0,
     this.zoomPanSensitivity = 1.0,
     this.desktop = const DesktopZoomOptions(),
+    this.runtime = const ZoomRuntimeOptions(),
     this.enableDoubleTapZoom = true,
     this.doubleTapZoomScale = 3.0,
     this.doubleTapZoomDuration = const Duration(milliseconds: 420),
@@ -31,6 +33,7 @@ class BeforeAfterZoomOptions {
   final double gestureZoomSmoothing;
   final double zoomPanSensitivity;
   final DesktopZoomOptions desktop;
+  final ZoomRuntimeOptions runtime;
   final bool enableDoubleTapZoom;
   final double doubleTapZoomScale;
   final Duration doubleTapZoomDuration;

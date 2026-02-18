@@ -43,3 +43,4 @@ export 'src/options/before_after_zoom_options.dart';
 export 'src/options/desktop_zoom_options.dart';
 export 'src/options/overlay_style.dart';
 export 'src/options/slider_hit_zone.dart';
+export 'src/options/zoom_runtime_options.dart';

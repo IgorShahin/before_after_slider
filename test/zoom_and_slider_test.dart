@@ -173,6 +173,15 @@ void main() {
       controller.reset();
       expect(notifyCount, 3);
     });
+
+    test('ZoomRuntimeOptions creates controller with provided limits', () {
+      const runtime = ZoomRuntimeOptions(minZoom: 2.0, maxZoom: 4.0);
+      final controller = runtime.createController();
+
+      expect(controller.minZoom, 2.0);
+      expect(controller.maxZoom, 4.0);
+      expect(controller.zoom, 2.0);
+    });
   });
 
   group('BeforeAfter widget tests', () {
@@ -464,6 +473,122 @@ void main() {
 
       expect(find.text('My Before'), findsOneWidget);
       expect(find.text('My After'), findsOneWidget);
+    });
+
+    testWidgets('labelsOptions.show = false hides labels', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 300,
+              child: BeforeAfter(
+                beforeChild: const ColoredBox(color: Colors.red),
+                afterChild: const ColoredBox(color: Colors.blue),
+                labelsOptions: const BeforeAfterLabelsOptions(show: false),
+                beforeLabelBuilder: (_) => const Text('Hidden Before'),
+                afterLabelBuilder: (_) => const Text('Hidden After'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Hidden Before'), findsNothing);
+      expect(find.text('Hidden After'), findsNothing);
+    });
+
+    testWidgets('interactionOptions can disable touch progress dragging',
+        (tester) async {
+      double? callbackValue;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 300,
+              child: BeforeAfter(
+                beforeChild: const ColoredBox(color: Colors.red),
+                afterChild: const ColoredBox(color: Colors.blue),
+                interactionOptions: const BeforeAfterInteractionOptions(
+                  enableProgressWithTouch: false,
+                ),
+                onProgressChanged: (value) => callbackValue = value,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final beforeAfter = find.byType(BeforeAfter);
+      await tester.drag(beforeAfter, const Offset(120, 0));
+      await tester.pumpAndSettle();
+
+      expect(callbackValue, isNull);
+    });
+
+    testWidgets('zoomOptions overrides legacy zoom configuration',
+        (tester) async {
+      final controller = ZoomController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 300,
+              child: BeforeAfter(
+                beforeChild: const ColoredBox(color: Colors.red),
+                afterChild: const ColoredBox(color: Colors.blue),
+                zoomController: controller,
+                // Legacy says enabled, grouped options should override.
+                enableZoom: true,
+                zoomOptions: const BeforeAfterZoomOptions(enabled: false),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(BeforeAfter));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.byType(BeforeAfter));
+      await tester.pump(const Duration(milliseconds: 520));
+
+      expect(controller.zoom, 1.0);
+    });
+
+    testWidgets('zoomOptions.runtime configures internal controller limits',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 300,
+              child: BeforeAfter(
+                beforeChild: ColoredBox(color: Colors.red),
+                afterChild: ColoredBox(color: Colors.blue),
+                zoomOptions: BeforeAfterZoomOptions(
+                  runtime: ZoomRuntimeOptions(
+                    minZoom: 2.0,
+                    maxZoom: 2.0,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final transforms = find.byType(Transform);
+      expect(transforms, findsWidgets);
+      final transformWidget = tester.widget<Transform>(transforms.first);
+      expect(transformWidget.transform.getColumn(0)[0], closeTo(2.0, 0.0001));
+      expect(transformWidget.transform.getColumn(1)[1], closeTo(2.0, 0.0001));
     });
   });
 

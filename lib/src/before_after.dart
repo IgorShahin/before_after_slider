@@ -16,6 +16,7 @@ import 'options/before_after_zoom_options.dart';
 import 'options/desktop_zoom_options.dart';
 import 'options/overlay_style.dart';
 import 'options/slider_hit_zone.dart';
+import 'options/zoom_runtime_options.dart';
 import 'widgets/default_overlay.dart';
 import 'widgets/labels.dart';
 
@@ -258,7 +259,8 @@ class _BeforeAfterState extends State<BeforeAfter> {
       _zoomController = widget.zoomController!;
       _ownsZoomController = false;
     } else {
-      _zoomController = ZoomController();
+      final runtime = widget.zoomOptions?.runtime ?? const ZoomRuntimeOptions();
+      _zoomController = runtime.createController();
       _ownsZoomController = true;
     }
   }
