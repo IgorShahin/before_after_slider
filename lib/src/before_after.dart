@@ -27,8 +27,24 @@ class BeforeAfter extends StatefulWidget {
     this.afterLabelBuilder,
     this.overlay,
     this.zoomController,
+    this.showLabels = true,
     this.fixedLabels = true,
-  });
+    this.enableReverseZoomVisualEffect = false,
+    this.reverseZoomMinScale = 0.92,
+    this.reverseZoomMaxShrink = 0.18,
+    this.reverseZoomEffectBorderRadius = 0.0,
+  })  : assert(
+          reverseZoomMinScale > 0 && reverseZoomMinScale <= 1.0,
+          'reverseZoomMinScale must be in (0.0, 1.0]',
+        ),
+        assert(
+          reverseZoomMaxShrink >= 0.0 && reverseZoomMaxShrink <= 0.4,
+          'reverseZoomMaxShrink must be in [0.0, 0.4]',
+        ),
+        assert(
+          reverseZoomEffectBorderRadius >= 0.0,
+          'reverseZoomEffectBorderRadius must be >= 0.0',
+        );
 
   /// The "before" widget to display.
   final Widget beforeChild;
@@ -73,8 +89,25 @@ class BeforeAfter extends StatefulWidget {
   /// Controller for programmatic zoom/pan control.
   final ZoomController? zoomController;
 
+  /// Whether the "before/after" labels are shown.
+  final bool showLabels;
+
   /// Whether labels stay fixed on screen while content is zoomed/panned.
   final bool fixedLabels;
+
+  /// Adds a visual "container shrink" effect while zooming out.
+  ///
+  /// This only affects rendering feedback and does not change actual zoom math.
+  final bool enableReverseZoomVisualEffect;
+
+  /// Minimum visual scale used by [enableReverseZoomVisualEffect].
+  final double reverseZoomMinScale;
+
+  /// Maximum visual shrink amount used by [enableReverseZoomVisualEffect].
+  final double reverseZoomMaxShrink;
+
+  /// Corner radius for the visual reverse zoom container.
+  final double reverseZoomEffectBorderRadius;
 
   @override
   State<BeforeAfter> createState() => _BeforeAfterState();
@@ -89,6 +122,7 @@ class _BeforeAfterState extends State<BeforeAfter> {
   Offset? _lastFocalPoint;
   double? _lastScale;
   int _lastPointerCount = 0;
+  double _containerVisualScaleTarget = 1.0;
 
   @override
   void initState() {
@@ -130,13 +164,30 @@ class _BeforeAfterState extends State<BeforeAfter> {
     super.dispose();
   }
 
-  void _updateProgress(double screenX, double width) {
-    final newProgress = (screenX / width).clamp(0.0, 1.0);
+  void _updateProgress(double screenX, Size size) {
+    final geometry = _visualGeometry(size);
+    final localX = screenX - geometry.offsetX;
+    final newProgress = (localX / geometry.width).clamp(0.0, 1.0);
     _progressNotifier.value = newProgress;
     widget.onProgressChanged?.call(newProgress);
   }
 
-  bool _isOnDivider(Offset localPosition, double dividerScreenX) {
+  ({double width, double height, double offsetX, double offsetY})
+      _visualGeometry(Size size) {
+    final visualScale = widget.enableReverseZoomVisualEffect
+        ? _containerVisualScaleTarget.clamp(0.0, 1.0)
+        : 1.0;
+    final width = size.width * visualScale;
+    final height = size.height * visualScale;
+    final offsetX = (size.width - width) / 2;
+    final offsetY = (size.height - height) / 2;
+    return (width: width, height: height, offsetX: offsetX, offsetY: offsetY);
+  }
+
+  bool _isOnOverlayLine(
+    Offset localPosition,
+    double dividerScreenX,
+  ) {
     final thumbSize = widget.overlayStyle.thumbSize;
     final dividerWidth = widget.overlayStyle.dividerWidth;
     final hitHalfWidth =
@@ -184,91 +235,142 @@ class _BeforeAfterState extends State<BeforeAfter> {
         return ValueListenableBuilder<double>(
           valueListenable: _progressNotifier,
           builder: (context, progress, _) {
-            final dividerScreenX = progress * size.width;
             final sideContent = _resolveSideContent(context);
-
-            Widget buildZoomableContent(double dividerContentX) {
-              Widget content = RepaintBoundary(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Positioned.fill(child: sideContent.rightChild),
-                    Positioned.fill(
-                      child: ClipRect(
-                        clipper: _LeftRectClipper(dividerContentX),
-                        child: sideContent.leftChild,
-                      ),
-                    ),
-                    if (!widget.fixedLabels)
-                      Align(
-                        alignment: Alignment.topLeft,
-                        child: sideContent.leftLabel,
-                      ),
-                    if (!widget.fixedLabels)
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: sideContent.rightLabel,
-                      ),
-                  ],
-                ),
-              );
-
-              if (widget.enableZoom) {
-                content = Transform(
-                  transform: _zoomController.transformationMatrix,
-                  alignment: Alignment.center,
-                  child: content,
-                );
-              }
-
-              return content;
-            }
-
-            final zoomableContent = widget.enableZoom
-                ? AnimatedBuilder(
-                    animation: _zoomController,
-                    builder: (context, child) {
-                      final dividerContentX =
-                          _screenToContentX(dividerScreenX, size)
-                              .clamp(0.0, size.width);
-                      return buildZoomableContent(dividerContentX);
-                    },
-                  )
-                : buildZoomableContent(dividerScreenX);
-
-            final overlayPosition = Offset(dividerScreenX, size.height / 2);
-            final overlay = widget.overlay?.call(size, overlayPosition) ??
-                DefaultOverlay(
-                  width: size.width,
-                  height: size.height,
-                  position: overlayPosition,
-                  style: widget.overlayStyle,
-                );
-
-            return GestureDetector(
-              onScaleStart: _onScaleStart,
-              onScaleUpdate: (details) => _onScaleUpdate(details, size),
-              onScaleEnd: _onScaleEnd,
-              onDoubleTap: widget.enableZoom ? _onDoubleTap : null,
-              child: ClipRect(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    zoomableContent,
-                    if (widget.fixedLabels)
-                      Align(
-                        alignment: Alignment.topLeft,
-                        child: sideContent.leftLabel,
-                      ),
-                    if (widget.fixedLabels)
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: sideContent.rightLabel,
-                      ),
-                    RepaintBoundary(child: overlay),
-                  ],
-                ),
+            return TweenAnimationBuilder<double>(
+              tween: Tween<double>(
+                begin: 1.0,
+                end: widget.enableReverseZoomVisualEffect
+                    ? _containerVisualScaleTarget
+                    : 1.0,
               ),
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOutCubic,
+              builder: (context, visualScale, _) {
+                final visualSize = Size(
+                  size.width * visualScale,
+                  size.height * visualScale,
+                );
+                final dividerScreenX = progress * visualSize.width;
+
+                Widget buildZoomableContent(double dividerContentX) {
+                  Widget content = RepaintBoundary(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Positioned.fill(child: sideContent.rightChild),
+                        Positioned.fill(
+                          child: ClipRect(
+                            clipper: _LeftRectClipper(dividerContentX),
+                            child: sideContent.leftChild,
+                          ),
+                        ),
+                        if (widget.showLabels && !widget.fixedLabels)
+                          Align(
+                            alignment: Alignment.topLeft,
+                            child: sideContent.leftLabel,
+                          ),
+                        if (widget.showLabels && !widget.fixedLabels)
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: sideContent.rightLabel,
+                          ),
+                      ],
+                    ),
+                  );
+
+                  if (widget.enableZoom) {
+                    content = Transform(
+                      transform: _zoomController.transformationMatrix,
+                      alignment: Alignment.center,
+                      child: content,
+                    );
+                  }
+
+                  return content;
+                }
+
+                final zoomableContent = widget.enableZoom
+                    ? AnimatedBuilder(
+                        animation: _zoomController,
+                        builder: (context, child) {
+                          final dividerContentX =
+                              _screenToContentX(dividerScreenX, visualSize)
+                                  .clamp(0.0, visualSize.width);
+                          return buildZoomableContent(dividerContentX);
+                        },
+                      )
+                    : buildZoomableContent(dividerScreenX);
+
+                final overlayPosition =
+                    Offset(dividerScreenX, visualSize.height / 2);
+                final overlay =
+                    widget.overlay?.call(visualSize, overlayPosition) ??
+                        DefaultOverlay(
+                          width: visualSize.width,
+                          height: visualSize.height,
+                          position: overlayPosition,
+                          style: widget.overlayStyle,
+                        );
+
+                final shrinkStrength = (1.0 - visualScale).clamp(0.0, 1.0);
+                final shadowAlpha = widget.enableReverseZoomVisualEffect
+                    ? (0.05 + shrinkStrength * 0.18).clamp(0.0, 0.3)
+                    : 0.0;
+                final radius = widget.reverseZoomEffectBorderRadius;
+
+                return GestureDetector(
+                  onScaleStart: _onScaleStart,
+                  onScaleUpdate: (details) => _onScaleUpdate(details, size),
+                  onScaleEnd: _onScaleEnd,
+                  onDoubleTap: widget.enableZoom ? _onDoubleTap : null,
+                  child: ClipRect(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Center(
+                          child: SizedBox(
+                            width: visualSize.width,
+                            height: visualSize.height,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(radius),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black
+                                        .withValues(alpha: shadowAlpha),
+                                    blurRadius: 22,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(radius),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    zoomableContent,
+                                    if (widget.showLabels && widget.fixedLabels)
+                                      Align(
+                                        alignment: Alignment.topLeft,
+                                        child: sideContent.leftLabel,
+                                      ),
+                                    if (widget.showLabels && widget.fixedLabels)
+                                      Align(
+                                        alignment: Alignment.topRight,
+                                        child: sideContent.rightLabel,
+                                      ),
+                                    RepaintBoundary(child: overlay),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -285,8 +387,7 @@ class _BeforeAfterState extends State<BeforeAfter> {
       final size = context.size;
       if (size != null) {
         final dividerScreenX = _progressNotifier.value * size.width;
-
-        if (_isOnDivider(details.localFocalPoint, dividerScreenX)) {
+        if (_isOnOverlayLine(details.localFocalPoint, dividerScreenX)) {
           _isDragging = true;
           widget.onProgressStart?.call(_progressNotifier.value);
         }
@@ -296,7 +397,7 @@ class _BeforeAfterState extends State<BeforeAfter> {
 
   void _onScaleUpdate(ScaleUpdateDetails details, Size size) {
     if (_isDragging) {
-      _updateProgress(details.localFocalPoint.dx, size.width);
+      _updateProgress(details.localFocalPoint.dx, size);
     } else if (widget.enableZoom && details.pointerCount >= 2) {
       if (_lastPointerCount != details.pointerCount) {
         _lastFocalPoint = details.localFocalPoint;
@@ -314,6 +415,8 @@ class _BeforeAfterState extends State<BeforeAfter> {
         panDelta: panDelta,
         zoomDelta: zoomDelta,
       );
+
+      _updateReverseZoomVisualScale(details.scale);
 
       _lastFocalPoint = details.localFocalPoint;
       _lastScale = details.scale;
@@ -344,6 +447,14 @@ class _BeforeAfterState extends State<BeforeAfter> {
       widget.onProgressEnd?.call(_progressNotifier.value);
       _isDragging = false;
     }
+    if (_containerVisualScaleTarget != 1.0) {
+      setState(() {
+        _containerVisualScaleTarget = 1.0;
+      });
+    }
+    if (widget.enableZoom) {
+      _zoomController.onGestureEnd();
+    }
     _lastFocalPoint = null;
     _lastScale = null;
     _lastPointerCount = 0;
@@ -351,6 +462,37 @@ class _BeforeAfterState extends State<BeforeAfter> {
 
   void _onDoubleTap() {
     _zoomController.reset();
+  }
+
+  void _updateReverseZoomVisualScale(double gestureScale) {
+    if (!widget.enableReverseZoomVisualEffect) return;
+
+    // Reverse-zoom container effect is shown only near base zoom.
+    if (_zoomController.zoom > 1.001) {
+      if (_containerVisualScaleTarget != 1.0) {
+        setState(() {
+          _containerVisualScaleTarget = 1.0;
+        });
+      }
+      return;
+    }
+
+    double nextScale = 1.0;
+    if (gestureScale < 1.0) {
+      final effectStrength = Curves.easeOutCubic.transform(
+        (1.0 - gestureScale).clamp(0.0, 1.0),
+      );
+      nextScale = (1.0 - effectStrength * widget.reverseZoomMaxShrink)
+          .clamp(widget.reverseZoomMinScale, 1.0);
+    }
+
+    final smoothed = _containerVisualScaleTarget +
+        (nextScale - _containerVisualScaleTarget) * 0.28;
+    if ((_containerVisualScaleTarget - smoothed).abs() > 0.004) {
+      setState(() {
+        _containerVisualScaleTarget = smoothed;
+      });
+    }
   }
 }
 

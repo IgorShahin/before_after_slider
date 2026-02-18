@@ -61,6 +61,7 @@ class _DemoPageState extends State<DemoPage> {
                     fit: BoxFit.cover,
                   ),
                   progress: _progress,
+                  // showLabels: false,
                   onProgressChanged: (value) {
                     setState(() {
                       _progress = value;
