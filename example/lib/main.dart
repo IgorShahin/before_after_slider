@@ -40,11 +40,9 @@ class _DemoPageState extends State<DemoPage> {
     final pressed = HardwareKeyboard.instance.logicalKeysPressed;
     final isMac = Theme.of(context).platform == TargetPlatform.macOS;
     if (isMac) {
-      return pressed.contains(LogicalKeyboardKey.metaLeft) ||
-          pressed.contains(LogicalKeyboardKey.metaRight);
+      return pressed.contains(LogicalKeyboardKey.metaLeft) || pressed.contains(LogicalKeyboardKey.metaRight);
     }
-    return pressed.contains(LogicalKeyboardKey.controlLeft) ||
-        pressed.contains(LogicalKeyboardKey.controlRight);
+    return pressed.contains(LogicalKeyboardKey.controlLeft) || pressed.contains(LogicalKeyboardKey.controlRight);
   }
 
   @override
@@ -63,9 +61,7 @@ class _DemoPageState extends State<DemoPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
-              physics: _lockPageScroll
-                  ? const NeverScrollableScrollPhysics()
-                  : const ClampingScrollPhysics(),
+              physics: _lockPageScroll ? const NeverScrollableScrollPhysics() : const ClampingScrollPhysics(),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Column(
@@ -88,9 +84,7 @@ class _DemoPageState extends State<DemoPage> {
                             if (!_isInBeforeAfterZone) return;
                             // Wheel/Cmd zoom is resolved by BeforeAfter itself.
                             // Keep page scroll lock disabled here.
-                            if (event is PointerScrollEvent &&
-                                !_isZoomModifierPressed() &&
-                                _lockPageScroll) {
+                            if (event is PointerScrollEvent && !_isZoomModifierPressed() && _lockPageScroll) {
                               setState(() => _lockPageScroll = false);
                             }
                           },
@@ -122,59 +116,64 @@ class _DemoPageState extends State<DemoPage> {
                               ),
                               progress: _progress,
                               // showLabels: false,
-                              labelBehavior: LabelBehavior.attachedToContent,
-                              sliderDragMode: SliderDragMode.thumbOnly,
-                              sliderHitZone: const SliderHitZone(
-                                minLineHalfWidth: 18,
-                                minThumbRadius: 30,
+                              labelsOptions: BeforeAfterLabelsOptions(
+                                behavior: LabelBehavior.attachedToContent,
+                                beforeBuilder: (_) => Container(
+                                  margin: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black87.withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Text(
+                                    'Before',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                afterBuilder: (_) => Container(
+                                  margin: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade700.withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Text(
+                                    'After',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                               ),
-                              zoomPanSensitivity: 0.95,
-                              desktopZoom: const DesktopZoomOptions(
-                                requiresModifier: true,
-                                smoothing: 0.4,
+                              interactionOptions: const BeforeAfterInteractionOptions(
+                                sliderDragMode: SliderDragMode.fullOverlay,
+                                sliderHitZone: SliderHitZone(
+                                  minLineHalfWidth: 18,
+                                  minThumbRadius: 30,
+                                ),
+                              ),
+                              zoomOptions: const BeforeAfterZoomOptions(
+                                zoomPanSensitivity: 0.95,
+                                desktop: DesktopZoomOptions(
+                                  requiresModifier: true,
+                                  smoothing: 0.4,
+                                ),
                               ),
                               onProgressChanged: (value) {
                                 setState(() {
                                   _progress = value;
                                 });
                               },
-                              beforeLabelBuilder: (_) => Container(
-                                margin: const EdgeInsets.all(10),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black87.withValues(alpha: 0.85),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Text(
-                                  'Before',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              afterLabelBuilder: (_) => Container(
-                                margin: const EdgeInsets.all(10),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.shade700
-                                      .withValues(alpha: 0.85),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Text(
-                                  'After',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
                               zoomController: _zoomController,
                             ),
                           ),

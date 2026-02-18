@@ -8,9 +8,9 @@
 /// - Compare images with drag-to-reveal interaction
 /// - Compare any widgets using [BeforeAfter]
 /// - Pinch-to-zoom and pan support
-/// - Double-tap to reset zoom
+/// - Double-tap zoom toggle with animation
 /// - Customizable overlay (divider line and thumb)
-/// - Customizable labels
+/// - Grouped options for zoom, labels, and interactions
 /// - Support for different content orders (before/after or after/before)
 ///
 /// ## Usage
@@ -33,6 +33,9 @@
 library;
 
 export 'src/before_after.dart';
+export 'src/before_after_interaction_options.dart';
+export 'src/before_after_labels_options.dart';
+export 'src/before_after_zoom_options.dart';
 export 'src/content_order.dart';
 export 'src/desktop_zoom_options.dart';
 export 'src/label_behavior.dart';
