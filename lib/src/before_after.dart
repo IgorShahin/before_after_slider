@@ -1,12 +1,31 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
-import 'content_order.dart';
-import 'default_overlay.dart';
-import 'labels.dart';
-import 'overlay_style.dart';
-import 'zoom_controller.dart';
+import 'controllers/zoom_controller.dart';
+import 'enums/content_order.dart';
+import 'enums/label_behavior.dart';
+import 'enums/slider_drag_mode.dart';
+import 'options/before_after_interaction_options.dart';
+import 'options/before_after_labels_options.dart';
+import 'options/before_after_zoom_options.dart';
+import 'options/desktop_zoom_options.dart';
+import 'options/overlay_style.dart';
+import 'options/slider_hit_zone.dart';
+import 'options/zoom_runtime_options.dart';
+import 'widgets/default_overlay.dart';
+import 'widgets/labels.dart';
+
+part 'core/before_after_config.dart';
+part 'core/before_after_gesture_state.dart';
+part 'core/before_after_gestures.dart';
+part 'core/before_after_labels.dart';
+part 'core/before_after_models.dart';
+part 'core/before_after_scene.dart';
 
 /// A unified before/after comparison widget for arbitrary widgets.
 class BeforeAfter extends StatefulWidget {
@@ -19,16 +38,59 @@ class BeforeAfter extends StatefulWidget {
     this.onProgressChanged,
     this.onProgressStart,
     this.onProgressEnd,
+    this.interactionOptions,
     this.enableProgressWithTouch = true,
+    this.zoomOptions,
     this.enableZoom = true,
+    this.enableDoubleTapZoom,
+    @Deprecated('Use enableDoubleTapZoom instead.')
+    this.enableDoubleTapZoomToggle,
+    this.doubleTapZoomScale = 3.0,
+    this.doubleTapZoomDuration = const Duration(milliseconds: 420),
+    this.doubleTapZoomCurve = Curves.easeInOutCubic,
+    this.gestureZoomSmoothing = 1.0,
+    this.zoomPanSensitivity = 1.0,
     this.contentOrder = ContentOrder.beforeAfter,
     this.overlayStyle = const OverlayStyle(),
+    this.labelsOptions,
     this.beforeLabelBuilder,
     this.afterLabelBuilder,
     this.overlay,
     this.zoomController,
-    this.fixedLabels = true,
-  });
+    this.sliderDragMode = SliderDragMode.fullOverlay,
+    this.sliderHitZone = const SliderHitZone(),
+    this.showLabels = true,
+    this.labelBehavior,
+    @Deprecated('Use labelBehavior instead.') this.fixedLabels = true,
+    this.desktopZoom = const DesktopZoomOptions(),
+    this.enableReverseZoomVisualEffect = false,
+    this.reverseZoomMinScale = 0.92,
+    this.reverseZoomMaxShrink = 0.18,
+    this.reverseZoomEffectBorderRadius = 0.0,
+  })  : assert(
+          reverseZoomMinScale > 0 && reverseZoomMinScale <= 1.0,
+          'reverseZoomMinScale must be in (0.0, 1.0]',
+        ),
+        assert(
+          reverseZoomMaxShrink >= 0.0 && reverseZoomMaxShrink <= 0.4,
+          'reverseZoomMaxShrink must be in [0.0, 0.4]',
+        ),
+        assert(
+          reverseZoomEffectBorderRadius >= 0.0,
+          'reverseZoomEffectBorderRadius must be >= 0.0',
+        ),
+        assert(
+          zoomPanSensitivity > 0.0,
+          'zoomPanSensitivity must be > 0.0',
+        ),
+        assert(
+          gestureZoomSmoothing > 0.0 && gestureZoomSmoothing <= 1.0,
+          'gestureZoomSmoothing must be in (0.0, 1.0]',
+        ),
+        assert(
+          doubleTapZoomScale >= 1.0,
+          'doubleTapZoomScale must be >= 1.0',
+        );
 
   /// The "before" widget to display.
   final Widget beforeChild;
@@ -49,17 +111,52 @@ class BeforeAfter extends StatefulWidget {
   /// Called when the user stops dragging the divider.
   final ValueChanged<double>? onProgressEnd;
 
+  /// Grouped interaction options (optional).
+  final BeforeAfterInteractionOptions? interactionOptions;
+
   /// Whether the user can change the progress by dragging.
   final bool enableProgressWithTouch;
 
+  /// Grouped zoom options (optional).
+  final BeforeAfterZoomOptions? zoomOptions;
+
   /// Whether pinch-to-zoom is enabled.
   final bool enableZoom;
+
+  /// Enables zoom toggle behavior on double tap.
+  final bool? enableDoubleTapZoom;
+
+  /// Enables double-tap zoom toggle animation.
+  @Deprecated('Use enableDoubleTapZoom instead.')
+  final bool? enableDoubleTapZoomToggle;
+
+  /// Target zoom used on double-tap from base zoom.
+  final double doubleTapZoomScale;
+
+  /// Animation duration for double-tap zoom toggle.
+  final Duration doubleTapZoomDuration;
+
+  /// Animation curve for double-tap zoom toggle.
+  final Curve doubleTapZoomCurve;
+
+  /// Smoothing factor for pinch gesture zoom.
+  ///
+  /// Lower values feel softer, higher values react faster.
+  final double gestureZoomSmoothing;
+
+  /// Pan speed multiplier while zooming.
+  ///
+  /// `1.0` is default speed, `<1.0` slower, `>1.0` faster.
+  final double zoomPanSensitivity;
 
   /// The order in which before and after content is displayed.
   final ContentOrder contentOrder;
 
   /// Style configuration for the overlay (divider and thumb).
   final OverlayStyle overlayStyle;
+
+  /// Grouped labels options (optional).
+  final BeforeAfterLabelsOptions? labelsOptions;
 
   /// Builder for the "before" label widget.
   final Widget Function(BuildContext context)? beforeLabelBuilder;
@@ -73,38 +170,64 @@ class BeforeAfter extends StatefulWidget {
   /// Controller for programmatic zoom/pan control.
   final ZoomController? zoomController;
 
+  /// Defines which part of overlay can start slider dragging.
+  final SliderDragMode sliderDragMode;
+
+  /// Hit/capture zone settings for slider interactions.
+  final SliderHitZone sliderHitZone;
+
+  /// Whether the "before/after" labels are shown.
+  final bool showLabels;
+
+  /// Defines how labels are rendered relative to the slider/content.
+  ///
+  /// If null, behavior is inferred from deprecated `fixedLabels`.
+  final LabelBehavior? labelBehavior;
+
   /// Whether labels stay fixed on screen while content is zoomed/panned.
+  @Deprecated('Use labelBehavior instead.')
   final bool fixedLabels;
+
+  /// Grouped desktop zoom configuration.
+  final DesktopZoomOptions desktopZoom;
+
+  /// Adds a visual "container shrink" effect while zooming out.
+  ///
+  /// This only affects rendering feedback and does not change actual zoom math.
+  final bool enableReverseZoomVisualEffect;
+
+  /// Minimum visual scale used by [enableReverseZoomVisualEffect].
+  final double reverseZoomMinScale;
+
+  /// Maximum visual shrink amount used by [enableReverseZoomVisualEffect].
+  final double reverseZoomMaxShrink;
+
+  /// Corner radius for the visual reverse zoom container.
+  final double reverseZoomEffectBorderRadius;
 
   @override
   State<BeforeAfter> createState() => _BeforeAfterState();
 }
 
 class _BeforeAfterState extends State<BeforeAfter> {
-  late ValueNotifier<double> _progressNotifier;
-  bool _isDragging = false;
+  late final ValueNotifier<double> _progressNotifier;
+  late final ValueNotifier<double> _containerVisualScaleTargetNotifier;
+
   late ZoomController _zoomController;
   bool _ownsZoomController = false;
 
-  Offset? _lastFocalPoint;
-  double? _lastScale;
-  int _lastPointerCount = 0;
+  final _gesture = _GestureSessionState();
+  bool _hasScheduledVisualScaleUpdate = false;
+  double? _pendingVisualScaleTarget;
+  bool _hasScheduledProgressCallback = false;
+  double? _pendingProgressCallback;
 
   @override
   void initState() {
     super.initState();
     _progressNotifier = ValueNotifier<double>(widget.progress ?? 0.5);
+    _containerVisualScaleTargetNotifier = ValueNotifier<double>(1.0);
     _initZoomController();
-  }
-
-  void _initZoomController() {
-    if (widget.zoomController != null) {
-      _zoomController = widget.zoomController!;
-      _ownsZoomController = false;
-    } else {
-      _zoomController = ZoomController();
-      _ownsZoomController = true;
-    }
   }
 
   @override
@@ -124,248 +247,134 @@ class _BeforeAfterState extends State<BeforeAfter> {
   @override
   void dispose() {
     _progressNotifier.dispose();
+    _containerVisualScaleTargetNotifier.dispose();
     if (_ownsZoomController) {
       _zoomController.dispose();
     }
     super.dispose();
   }
 
-  void _updateProgress(double screenX, double width) {
-    final newProgress = (screenX / width).clamp(0.0, 1.0);
-    _progressNotifier.value = newProgress;
-    widget.onProgressChanged?.call(newProgress);
-  }
-
-  bool _isOnDivider(Offset localPosition, double dividerScreenX) {
-    final thumbSize = widget.overlayStyle.thumbSize;
-    final dividerWidth = widget.overlayStyle.dividerWidth;
-    final hitHalfWidth =
-        math.max(thumbSize / 2, math.max(dividerWidth * 2, 12));
-    final dx = (localPosition.dx - dividerScreenX).abs();
-    return dx <= hitHalfWidth;
-  }
-
-  double _screenToContentX(double screenX, Size size) {
-    if (!widget.enableZoom) return screenX;
-    final centerX = size.width / 2;
-    return ((screenX - centerX - _zoomController.pan.dx) /
-            _zoomController.zoom) +
-        centerX;
-  }
-
-  ({Widget leftChild, Widget rightChild, Widget leftLabel, Widget rightLabel})
-      _resolveSideContent(BuildContext context) {
-    if (widget.contentOrder == ContentOrder.beforeAfter) {
-      return (
-        leftChild: widget.beforeChild,
-        rightChild: widget.afterChild,
-        leftLabel: widget.beforeLabelBuilder?.call(context) ??
-            BeforeLabel(contentOrder: widget.contentOrder),
-        rightLabel: widget.afterLabelBuilder?.call(context) ??
-            AfterLabel(contentOrder: widget.contentOrder),
-      );
+  void _initZoomController() {
+    if (widget.zoomController != null) {
+      _zoomController = widget.zoomController!;
+      _ownsZoomController = false;
+    } else {
+      final runtime = widget.zoomOptions?.runtime ?? const ZoomRuntimeOptions();
+      _zoomController = runtime.createController();
+      _ownsZoomController = true;
     }
+  }
 
-    return (
-      leftChild: widget.afterChild,
-      rightChild: widget.beforeChild,
-      leftLabel: widget.afterLabelBuilder?.call(context) ??
-          AfterLabel(contentOrder: widget.contentOrder),
-      rightLabel: widget.beforeLabelBuilder?.call(context) ??
-          BeforeLabel(contentOrder: widget.contentOrder),
-    );
+  double get _containerVisualScaleTarget =>
+      _containerVisualScaleTargetNotifier.value;
+
+  void _setContainerVisualScaleTarget(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    if ((_containerVisualScaleTargetNotifier.value - clamped).abs() > 0.0005) {
+      _containerVisualScaleTargetNotifier.value = clamped;
+    }
+  }
+
+  void _queueContainerVisualScaleTarget(double value) {
+    _pendingVisualScaleTarget = value;
+    if (_hasScheduledVisualScaleUpdate) return;
+    _hasScheduledVisualScaleUpdate = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _hasScheduledVisualScaleUpdate = false;
+      final pending = _pendingVisualScaleTarget;
+      _pendingVisualScaleTarget = null;
+      if (pending == null || !mounted) return;
+      _setContainerVisualScaleTarget(pending);
+    });
+  }
+
+  void _queueProgressChangedCallback(double value) {
+    _pendingProgressCallback = value;
+    if (_hasScheduledProgressCallback) return;
+    _hasScheduledProgressCallback = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _hasScheduledProgressCallback = false;
+      final pending = _pendingProgressCallback;
+      _pendingProgressCallback = null;
+      if (pending == null || !mounted) return;
+      widget.onProgressChanged?.call(pending);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final sideContent = _resolveSideContent(context);
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        final fullSize = Size(constraints.maxWidth, constraints.maxHeight);
+
         return ValueListenableBuilder<double>(
           valueListenable: _progressNotifier,
           builder: (context, progress, _) {
-            final dividerScreenX = progress * size.width;
-            final sideContent = _resolveSideContent(context);
+            return ValueListenableBuilder<double>(
+              valueListenable: _containerVisualScaleTargetNotifier,
+              builder: (context, visualScaleTarget, _) {
+                return TweenAnimationBuilder<double>(
+                  tween: Tween<double>(
+                    begin: 1.0,
+                    end: widget.enableReverseZoomVisualEffect
+                        ? visualScaleTarget
+                        : 1.0,
+                  ),
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, visualScale, _) {
+                    final visual = _visualGeometry(fullSize, visualScale);
 
-            Widget buildZoomableContent(double dividerContentX) {
-              Widget content = RepaintBoundary(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Positioned.fill(child: sideContent.rightChild),
-                    Positioned.fill(
-                      child: ClipRect(
-                        clipper: _LeftRectClipper(dividerContentX),
-                        child: sideContent.leftChild,
-                      ),
-                    ),
-                    if (!widget.fixedLabels)
-                      Align(
-                        alignment: Alignment.topLeft,
-                        child: sideContent.leftLabel,
-                      ),
-                    if (!widget.fixedLabels)
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: sideContent.rightLabel,
-                      ),
-                  ],
-                ),
-              );
+                    final scene = _BeforeAfterScene(
+                      fullSize: fullSize,
+                      visual: visual,
+                      progress: progress,
+                      sideContent: sideContent,
+                      enableZoom: _isZoomEnabled,
+                      showLabels: _effectiveShowLabels,
+                      labelBehavior: _effectiveLabelBehavior,
+                      enableReverseZoomVisualEffect:
+                          widget.enableReverseZoomVisualEffect,
+                      reverseZoomEffectBorderRadius:
+                          widget.reverseZoomEffectBorderRadius,
+                      overlayBuilder: widget.overlay,
+                      overlayStyle: widget.overlayStyle,
+                      zoomController: _zoomController,
+                    );
 
-              if (widget.enableZoom) {
-                content = Transform(
-                  transform: _zoomController.transformationMatrix,
-                  alignment: Alignment.center,
-                  child: content,
+                    return GestureDetector(
+                      onScaleStart: _onScaleStart,
+                      onScaleUpdate: (details) =>
+                          _onScaleUpdate(details, fullSize),
+                      onScaleEnd: _onScaleEnd,
+                      onDoubleTapDown: _isZoomEnabled && _isDoubleTapZoomEnabled
+                          ? _onDoubleTapDown
+                          : null,
+                      onDoubleTap: _isZoomEnabled && _isDoubleTapZoomEnabled
+                          ? () => _onDoubleTap(fullSize)
+                          : null,
+                      child: Listener(
+                        onPointerDown: _onPointerDown,
+                        onPointerUp: _onPointerUp,
+                        onPointerCancel: _onPointerCancel,
+                        onPointerSignal: (event) =>
+                            _onPointerSignal(event, fullSize),
+                        onPointerPanZoomStart: _onPointerPanZoomStart,
+                        onPointerPanZoomUpdate: (event) =>
+                            _onPointerPanZoomUpdate(event, fullSize),
+                        onPointerPanZoomEnd: _onPointerPanZoomEnd,
+                        child: scene,
+                      ),
+                    );
+                  },
                 );
-              }
-
-              return content;
-            }
-
-            final zoomableContent = widget.enableZoom
-                ? AnimatedBuilder(
-                    animation: _zoomController,
-                    builder: (context, child) {
-                      final dividerContentX =
-                          _screenToContentX(dividerScreenX, size)
-                              .clamp(0.0, size.width);
-                      return buildZoomableContent(dividerContentX);
-                    },
-                  )
-                : buildZoomableContent(dividerScreenX);
-
-            final overlayPosition = Offset(dividerScreenX, size.height / 2);
-            final overlay = widget.overlay?.call(size, overlayPosition) ??
-                DefaultOverlay(
-                  width: size.width,
-                  height: size.height,
-                  position: overlayPosition,
-                  style: widget.overlayStyle,
-                );
-
-            return GestureDetector(
-              onScaleStart: _onScaleStart,
-              onScaleUpdate: (details) => _onScaleUpdate(details, size),
-              onScaleEnd: _onScaleEnd,
-              onDoubleTap: widget.enableZoom ? _onDoubleTap : null,
-              child: ClipRect(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    zoomableContent,
-                    if (widget.fixedLabels)
-                      Align(
-                        alignment: Alignment.topLeft,
-                        child: sideContent.leftLabel,
-                      ),
-                    if (widget.fixedLabels)
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: sideContent.rightLabel,
-                      ),
-                    RepaintBoundary(child: overlay),
-                  ],
-                ),
-              ),
+              },
             );
           },
         );
       },
     );
-  }
-
-  void _onScaleStart(ScaleStartDetails details) {
-    _lastFocalPoint = details.localFocalPoint;
-    _lastScale = 1.0;
-    _lastPointerCount = details.pointerCount;
-
-    if (widget.enableProgressWithTouch && details.pointerCount == 1) {
-      final size = context.size;
-      if (size != null) {
-        final dividerScreenX = _progressNotifier.value * size.width;
-
-        if (_isOnDivider(details.localFocalPoint, dividerScreenX)) {
-          _isDragging = true;
-          widget.onProgressStart?.call(_progressNotifier.value);
-        }
-      }
-    }
-  }
-
-  void _onScaleUpdate(ScaleUpdateDetails details, Size size) {
-    if (_isDragging) {
-      _updateProgress(details.localFocalPoint.dx, size.width);
-    } else if (widget.enableZoom && details.pointerCount >= 2) {
-      if (_lastPointerCount != details.pointerCount) {
-        _lastFocalPoint = details.localFocalPoint;
-        _lastScale = details.scale;
-        _lastPointerCount = details.pointerCount;
-        return;
-      }
-
-      final panDelta = details.localFocalPoint -
-          (_lastFocalPoint ?? details.localFocalPoint);
-      final zoomDelta = details.scale / (_lastScale ?? 1.0);
-
-      _zoomController.updateFromGesture(
-        containerSize: size,
-        panDelta: panDelta,
-        zoomDelta: zoomDelta,
-      );
-
-      _lastFocalPoint = details.localFocalPoint;
-      _lastScale = details.scale;
-    } else if (widget.enableZoom &&
-        _zoomController.zoom > 1.0 &&
-        details.pointerCount == 1) {
-      if (_lastPointerCount != details.pointerCount) {
-        _lastFocalPoint = details.localFocalPoint;
-        _lastPointerCount = details.pointerCount;
-        return;
-      }
-
-      final panDelta = details.localFocalPoint -
-          (_lastFocalPoint ?? details.localFocalPoint);
-      _zoomController.updateFromGesture(
-        containerSize: size,
-        panDelta: panDelta,
-      );
-
-      _lastFocalPoint = details.localFocalPoint;
-    } else {
-      _lastPointerCount = details.pointerCount;
-    }
-  }
-
-  void _onScaleEnd(ScaleEndDetails details) {
-    if (_isDragging) {
-      widget.onProgressEnd?.call(_progressNotifier.value);
-      _isDragging = false;
-    }
-    _lastFocalPoint = null;
-    _lastScale = null;
-    _lastPointerCount = 0;
-  }
-
-  void _onDoubleTap() {
-    _zoomController.reset();
-  }
-}
-
-class _LeftRectClipper extends CustomClipper<Rect> {
-  _LeftRectClipper(this.dividerX);
-
-  final double dividerX;
-
-  @override
-  Rect getClip(Size size) {
-    return Rect.fromLTRB(0, 0, dividerX, size.height);
-  }
-
-  @override
-  bool shouldReclip(_LeftRectClipper oldClipper) {
-    return dividerX != oldClipper.dividerX;
   }
 }

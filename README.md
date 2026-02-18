@@ -12,10 +12,13 @@ any side-by-side state comparison UI.
 - Compare any two widgets with `BeforeAfter`
 - Smooth drag gesture and full divider-line hit area
 - Pinch-to-zoom and pan gestures
-- Double-tap to reset zoom
+- Desktop zoom with Ctrl/Cmd + wheel at cursor position
+- Double-tap zoom toggle with smooth animation
 - Custom overlay style (`OverlayStyle`) or fully custom overlay builder
-- Custom labels (`beforeLabelBuilder`, `afterLabelBuilder`)
-- `fixedLabels` mode to keep labels static during zoom/pan
+- Grouped options API (`BeforeAfterZoomOptions`, `BeforeAfterLabelsOptions`, `BeforeAfterInteractionOptions`)
+- Toggle labels visibility with `showLabels`
+- Label behavior control with `LabelBehavior`
+- Select drag area with `sliderDragMode`
 - External `ZoomController` for programmatic control
 - Controlled/uncontrolled progress modes
 
@@ -64,8 +67,16 @@ BeforeAfter(
     alignment: Alignment.center,
   ),
   progress: 0.5,
-  enableZoom: true,
-  fixedLabels: true,
+  zoomOptions: const BeforeAfterZoomOptions(
+    enabled: true,
+    doubleTapZoomScale: 3.0,
+  ),
+  labelsOptions: const BeforeAfterLabelsOptions(
+    behavior: LabelBehavior.staticOverlaySafe,
+  ),
+  interactionOptions: const BeforeAfterInteractionOptions(
+    sliderDragMode: SliderDragMode.fullOverlay,
+  ),
   overlayStyle: const OverlayStyle(
     dividerWidth: 2,
     thumbSize: 40,
@@ -82,8 +93,10 @@ BeforeAfter(
 BeforeAfter(
   beforeChild: Container(color: const Color(0xFFDCEBFF)),
   afterChild: Container(color: const Color(0xFFFFECD8)),
-  enableZoom: true,
-  fixedLabels: true,
+  zoomOptions: const BeforeAfterZoomOptions(enabled: true),
+  labelsOptions: const BeforeAfterLabelsOptions(
+    behavior: LabelBehavior.staticOverlaySafe,
+  ),
 )
 ```
 
@@ -110,21 +123,47 @@ controller.reset();
 
 - `progress` (controlled mode)
 - `onProgressChanged`, `onProgressStart`, `onProgressEnd`
-- `enableProgressWithTouch`
-- `enableZoom`
-- `fixedLabels`
+- `interactionOptions` (`BeforeAfterInteractionOptions`)
+- `zoomOptions` (`BeforeAfterZoomOptions`)
+- `labelsOptions` (`BeforeAfterLabelsOptions`)
 - `contentOrder`
 - `overlayStyle`
-- `beforeLabelBuilder`, `afterLabelBuilder`
 - `overlay` (custom builder)
 - `zoomController`
 
-### `fixedLabels` Behavior
+`zoomOptions.desktop.requiresModifier` uses platform-specific keys by default:
+- macOS: `Cmd`
+- Windows/Linux: `Ctrl`
 
-- `fixedLabels: true` (default)  
-  Labels stay in static screen positions while content zooms/pans.
-- `fixedLabels: false`  
-  Labels transform together with compared content.
+Example:
+```dart
+BeforeAfter(
+  beforeChild: ...,
+  afterChild: ...,
+  zoomOptions: const BeforeAfterZoomOptions(
+    desktop: DesktopZoomOptions(
+      requiresModifier: true,
+      smoothing: 0.4,
+    ),
+  ),
+)
+```
+
+### Slider Drag Mode
+
+- `SliderDragMode.fullOverlay` (default)  
+  Drag starts from divider line or thumb.
+- `SliderDragMode.thumbOnly`  
+  Drag starts only from thumb/icon area.
+
+### Label Behavior
+
+- `LabelBehavior.staticOverlaySafe` (default)  
+  Labels stay static and render above the slider overlay.
+- `LabelBehavior.attachedToContent`  
+  Labels attach to each side and are clipped by the divider.
+
+`fixedLabels` is still supported for backward compatibility but deprecated.
 
 ## Migration From 1.x
 
