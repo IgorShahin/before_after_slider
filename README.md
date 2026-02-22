@@ -128,6 +128,7 @@ controller.reset();
 - `interactionOptions` (`BeforeAfterInteractionOptions`)
 - `zoomOptions` (`BeforeAfterZoomOptions`)
 - `labelsOptions` (`BeforeAfterLabelsOptions`)
+- `viewportAspectRatio` / `autoViewportAspectRatioFromImage`
 - `contentOrder`
 - `overlayOptions` (`BeforeAfterOverlayOptions`)
 - `zoomController`

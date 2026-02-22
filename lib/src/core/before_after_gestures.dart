@@ -42,7 +42,7 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
   _VisualGeometry _visualGeometry(Size fullSize, double visualScale) {
     var fittedWidth = fullSize.width;
     var fittedHeight = fullSize.height;
-    final aspectRatio = widget.viewportAspectRatio;
+    final aspectRatio = _effectiveViewportAspectRatio;
     if (aspectRatio != null && aspectRatio > 0.0) {
       final heightFromWidth = fullSize.width / aspectRatio;
       if (heightFromWidth <= fullSize.height) {

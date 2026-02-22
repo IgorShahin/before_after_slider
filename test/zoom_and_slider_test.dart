@@ -1,3 +1,6 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:before_after_slider/before_after_slider.dart';
@@ -203,6 +206,34 @@ void main() {
 
       expect(find.byType(BeforeAfter), findsOneWidget);
       expect(find.byType(DefaultOverlay), findsOneWidget);
+    });
+
+    testWidgets('auto viewport aspect ratio uses direct Image child ratio',
+        (tester) async {
+      const imageProvider = _TestSolidImageProvider(width: 200, height: 100);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              height: 400,
+              child: BeforeAfter(
+                autoViewportAspectRatioFromImage: true,
+                beforeChild: Image(image: imageProvider, fit: BoxFit.cover),
+                afterChild: ColoredBox(color: Colors.blue),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final overlay =
+          tester.widget<DefaultOverlay>(find.byType(DefaultOverlay));
+      expect(overlay.width, closeTo(300.0, 0.01));
+      expect(overlay.height, closeTo(150.0, 0.01));
     });
 
     testWidgets('external zoom controller works', (tester) async {
@@ -663,4 +694,39 @@ void main() {
       expect(contentPoint.dy, 62.5);
     });
   });
+}
+
+class _TestSolidImageProvider extends ImageProvider<_TestSolidImageProvider> {
+  const _TestSolidImageProvider({
+    required this.width,
+    required this.height,
+  });
+
+  final int width;
+  final int height;
+
+  @override
+  Future<_TestSolidImageProvider> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<_TestSolidImageProvider>(this);
+  }
+
+  @override
+  ImageStreamCompleter loadImage(
+    _TestSolidImageProvider key,
+    ImageDecoderCallback decode,
+  ) {
+    return OneFrameImageStreamCompleter(_loadAsync());
+  }
+
+  Future<ImageInfo> _loadAsync() async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+      Paint()..color = Colors.white,
+    );
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(width, height);
+    return ImageInfo(image: image, scale: 1.0);
+  }
 }

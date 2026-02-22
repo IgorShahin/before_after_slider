@@ -49,7 +49,8 @@ class _DemoPageState extends State<DemoPage> {
           children: [
             Expanded(
               child: BeforeAfter(
-                viewportAspectRatio: 4 / 3,
+                // viewportAspectRatio: 4 / 3,
+                autoViewportAspectRatioFromImage: true,
                 beforeChild: Image.asset(
                   'assets/before.jpeg',
                   fit: BoxFit.cover,

@@ -47,6 +47,7 @@ class BeforeAfter extends StatefulWidget {
     this.interactionOptions = const BeforeAfterInteractionOptions(),
     this.zoomOptions = const BeforeAfterZoomOptions(),
     this.viewportAspectRatio,
+    this.autoViewportAspectRatioFromImage = false,
     this.contentOrder = ContentOrder.beforeAfter,
     this.overlayOptions = const BeforeAfterOverlayOptions(),
     this.labelsOptions = const BeforeAfterLabelsOptions(),
@@ -88,6 +89,10 @@ class BeforeAfter extends StatefulWidget {
   /// full available size while zooming.
   final double? viewportAspectRatio;
 
+  /// When true and [viewportAspectRatio] is null, tries to derive the viewport
+  /// aspect ratio from direct [Image] children.
+  final bool autoViewportAspectRatioFromImage;
+
   /// The order in which before and after content is displayed.
   final ContentOrder contentOrder;
 
@@ -112,6 +117,11 @@ class _BeforeAfterState extends State<BeforeAfter> {
 
   late ZoomController _zoomController;
   bool _ownsZoomController = false;
+  double? _autoViewportAspectRatio;
+  ImageStream? _autoAspectImageStream;
+  ImageStreamListener? _autoAspectImageStreamListener;
+  ImageProvider<Object>? _autoAspectImageProvider;
+  ImageConfiguration? _autoAspectImageConfiguration;
 
   final _gesture = _GestureSessionState();
   bool _hasScheduledProgressCallback = false;
@@ -163,10 +173,25 @@ class _BeforeAfterState extends State<BeforeAfter> {
       _rebuildCursorListenable();
       _zoomController.addListener(_onZoomControllerChanged);
     }
+
+    if (widget.viewportAspectRatio != oldWidget.viewportAspectRatio ||
+        widget.autoViewportAspectRatioFromImage !=
+            oldWidget.autoViewportAspectRatioFromImage ||
+        widget.beforeChild != oldWidget.beforeChild ||
+        widget.afterChild != oldWidget.afterChild) {
+      _resolveAutoViewportAspectRatio();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolveAutoViewportAspectRatio();
   }
 
   @override
   void dispose() {
+    _stopAutoAspectRatioListener();
     _progressNotifier.dispose();
     _containerVisualScaleTargetNotifier.dispose();
     _isPrimaryPointerDownNotifier.dispose();
@@ -186,6 +211,77 @@ class _BeforeAfterState extends State<BeforeAfter> {
       _zoomController = runtime.createController();
       _ownsZoomController = true;
     }
+  }
+
+  ImageProvider<Object>? _extractImageProvider(Widget child) {
+    if (child is Image) return child.image;
+    return null;
+  }
+
+  void _stopAutoAspectRatioListener() {
+    final stream = _autoAspectImageStream;
+    final listener = _autoAspectImageStreamListener;
+    if (stream != null && listener != null) {
+      stream.removeListener(listener);
+    }
+    _autoAspectImageStream = null;
+    _autoAspectImageStreamListener = null;
+    _autoAspectImageProvider = null;
+    _autoAspectImageConfiguration = null;
+  }
+
+  void _setAutoViewportAspectRatio(double? value) {
+    final current = _autoViewportAspectRatio;
+    if (current == null && value == null) return;
+    if (current != null && value != null && (current - value).abs() < 0.0001) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _autoViewportAspectRatio = value;
+    });
+  }
+
+  void _resolveAutoViewportAspectRatio() {
+    if (!widget.autoViewportAspectRatioFromImage ||
+        widget.viewportAspectRatio != null) {
+      _stopAutoAspectRatioListener();
+      _setAutoViewportAspectRatio(null);
+      return;
+    }
+
+    final provider = _extractImageProvider(widget.beforeChild) ??
+        _extractImageProvider(widget.afterChild);
+    if (provider == null) {
+      _stopAutoAspectRatioListener();
+      _setAutoViewportAspectRatio(null);
+      return;
+    }
+
+    final configuration = createLocalImageConfiguration(context);
+    final providerUnchanged = _autoAspectImageProvider == provider;
+    final configurationUnchanged =
+        _autoAspectImageConfiguration == configuration;
+    if (providerUnchanged &&
+        configurationUnchanged &&
+        _autoAspectImageStream != null &&
+        _autoAspectImageStreamListener != null) {
+      return;
+    }
+
+    _stopAutoAspectRatioListener();
+    final stream = provider.resolve(configuration);
+    final listener = ImageStreamListener((imageInfo, _) {
+      final width = imageInfo.image.width;
+      final height = imageInfo.image.height;
+      if (width <= 0 || height <= 0) return;
+      _setAutoViewportAspectRatio(width / height);
+    });
+    _autoAspectImageStream = stream;
+    _autoAspectImageStreamListener = listener;
+    _autoAspectImageProvider = provider;
+    _autoAspectImageConfiguration = configuration;
+    stream.addListener(listener);
   }
 
   void _rebuildCursorListenable() {
