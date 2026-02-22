@@ -135,6 +135,7 @@ class BeforeAfter extends StatefulWidget {
 class _BeforeAfterState extends State<BeforeAfter> {
   late final ValueNotifier<double> _progressNotifier;
   late final ValueNotifier<double> _containerVisualScaleTargetNotifier;
+  late final ValueNotifier<bool> _isPrimaryPointerDownNotifier;
 
   late ZoomController _zoomController;
   bool _ownsZoomController = false;
@@ -148,6 +149,7 @@ class _BeforeAfterState extends State<BeforeAfter> {
     super.initState();
     _progressNotifier = ValueNotifier<double>(widget.progress ?? 0.5);
     _containerVisualScaleTargetNotifier = ValueNotifier<double>(1.0);
+    _isPrimaryPointerDownNotifier = ValueNotifier<bool>(false);
     _initZoomController();
     _zoomController.addListener(_onZoomControllerChanged);
   }
@@ -172,6 +174,7 @@ class _BeforeAfterState extends State<BeforeAfter> {
   void dispose() {
     _progressNotifier.dispose();
     _containerVisualScaleTargetNotifier.dispose();
+    _isPrimaryPointerDownNotifier.dispose();
     _zoomController.removeListener(_onZoomControllerChanged);
     if (_ownsZoomController) {
       _zoomController.dispose();
@@ -217,11 +220,6 @@ class _BeforeAfterState extends State<BeforeAfter> {
   void _onZoomControllerChanged() {
     if (!mounted) return;
     _updateContainerScaleFromZoom();
-  }
-
-  void _refreshPointerCursor() {
-    if (!mounted) return;
-    setState(() {});
   }
 
   @override
@@ -286,13 +284,15 @@ class _BeforeAfterState extends State<BeforeAfter> {
 
               final sceneWithCursor = _isDesktopLike && _effectiveShowPointerCursor
                   ? AnimatedBuilder(
-                      animation: _zoomController,
+                      animation: Listenable.merge(
+                        [_zoomController, _isPrimaryPointerDownNotifier],
+                      ),
                       child: pointerLayer,
                       builder: (context, child) {
                         final canPanZoomedContent = _isZoomEnabled &&
                             _zoomController.effectiveZoom > 1.001;
                         final cursor = canPanZoomedContent
-                            ? (_gesture.isPrimaryPointerDown
+                            ? (_isPrimaryPointerDownNotifier.value
                                 ? _effectiveZoomedDraggingCursor
                                 : _effectiveZoomedCursor)
                             : _effectiveIdleCursor;

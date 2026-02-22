@@ -237,7 +237,9 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
 
     final rawPanDelta = details.localFocalPoint -
         (_gesture.lastFocalPoint ?? details.localFocalPoint);
-    final panDelta = rawPanDelta * _effectiveZoomPanSensitivity;
+    final panDelta = _isDesktopLike
+        ? Offset.zero
+        : rawPanDelta * _effectiveZoomPanSensitivity;
     final rawZoomDelta = details.scale / (_gesture.lastScale ?? 1.0);
     final smoothedZoomDelta =
         1.0 + (rawZoomDelta - 1.0) * _effectiveGestureZoomSmoothing;
@@ -357,7 +359,7 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
           (event.buttons & kPrimaryButton) != 0;
       if (_gesture.isPrimaryPointerDown != isDown) {
         _gesture.isPrimaryPointerDown = isDown;
-        _refreshPointerCursor();
+        _isPrimaryPointerDownNotifier.value = isDown;
       }
     }
   }
@@ -366,7 +368,7 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     if (event.kind == PointerDeviceKind.mouse) {
       if (_gesture.isPrimaryPointerDown) {
         _gesture.isPrimaryPointerDown = false;
-        _refreshPointerCursor();
+        _isPrimaryPointerDownNotifier.value = false;
       }
     }
   }
@@ -375,7 +377,7 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     if (event.kind == PointerDeviceKind.mouse) {
       if (_gesture.isPrimaryPointerDown) {
         _gesture.isPrimaryPointerDown = false;
-        _refreshPointerCursor();
+        _isPrimaryPointerDownNotifier.value = false;
       }
     }
   }
