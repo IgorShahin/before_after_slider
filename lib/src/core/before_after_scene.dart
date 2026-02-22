@@ -31,8 +31,11 @@ class _BeforeAfterScene extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dividerScreenX = progress * visual.width;
-    final overlayPosition = Offset(dividerScreenX, visual.height / 2);
+    final dividerScreenX = visual.offsetX + progress * visual.width;
+    final rawDividerLocalX = dividerScreenX - visual.offsetX;
+    final dividerLocalX = rawDividerLocalX.clamp(0.0, visual.width);
+    final dividerLocalXForScaledContent = dividerLocalX;
+    final centerX = visual.width / 2;
     final isAttachedLabels = labelBehavior == LabelBehavior.attachedToContent;
     final isStaticLabels = labelBehavior == LabelBehavior.staticOverlaySafe;
 
@@ -66,25 +69,25 @@ class _BeforeAfterScene extends StatelessWidget {
         ? AnimatedBuilder(
             animation: zoomController,
             builder: (context, _) {
-              final centerX = visual.width / 2;
-              final dividerContentX =
-                  ((dividerScreenX - centerX - zoomController.pan.dx) /
-                              zoomController.effectiveZoom +
-                          centerX)
-                      .clamp(0.0, visual.width);
+              final dividerContentX = ((dividerLocalXForScaledContent -
+                              centerX -
+                              zoomController.pan.dx) /
+                          zoomController.effectiveZoom +
+                      centerX)
+                  .clamp(0.0, visual.width);
               return buildZoomableContent(dividerContentX);
             },
           )
-        : buildZoomableContent(dividerScreenX);
+        : buildZoomableContent(dividerLocalXForScaledContent);
 
     final overlay = overlayBuilder?.call(
           Size(visual.width, visual.height),
-          overlayPosition,
+          Offset(dividerLocalX, visual.height / 2),
         ) ??
         DefaultOverlay(
           width: visual.width,
           height: visual.height,
-          position: overlayPosition,
+          position: Offset(dividerLocalX, visual.height / 2),
           style: overlayStyle,
         );
 
@@ -100,75 +103,89 @@ class _BeforeAfterScene extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Center(
-          child: SizedBox(
-            width: visual.width,
-            height: visual.height,
-            child: Container(
-              decoration: BoxDecoration(
+          child: Builder(
+            builder: (context) {
+              final contentLayer = ClipRRect(
                 borderRadius: BorderRadius.circular(radius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: shadowAlpha),
-                    blurRadius: 22,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Stack(
-                fit: StackFit.expand,
-                clipBehavior: Clip.none,
-                children: [
-                  ClipRRect(
+                child: zoomableContent,
+              );
+              final sceneBody = SizedBox(
+                width: visual.width,
+                height: visual.height,
+                child: Container(
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        zoomableContent,
-                        if (showLabels && isAttachedLabels)
-                          Positioned.fill(
-                            child: ClipRect(
-                              clipper: _LeftRectClipper(dividerScreenX),
-                              child: Align(
-                                alignment: Alignment.topLeft,
-                                child: RepaintBoundary(
-                                  child: sideContent.leftLabel,
-                                ),
-                              ),
-                            ),
-                          ),
-                        if (showLabels && isAttachedLabels)
-                          Positioned.fill(
-                            child: ClipRect(
-                              clipper: _RightRectClipper(dividerScreenX),
-                              child: Align(
-                                alignment: Alignment.topRight,
-                                child: RepaintBoundary(
-                                  child: sideContent.rightLabel,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: shadowAlpha),
+                        blurRadius: 22,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                  RepaintBoundary(child: overlay),
-                  if (showLabels && isStaticLabels)
-                    Align(
-                      alignment: Alignment.topLeft,
-                      child: RepaintBoundary(
-                        child: sideContent.leftLabel,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.none,
+                    children: [
+                      Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          contentLayer,
+                          if (showLabels && isAttachedLabels)
+                            Positioned.fill(
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRect(
+                                    clipper: _LeftRectClipper(
+                                      dividerLocalX,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.topLeft,
+                                      child: RepaintBoundary(
+                                        child: sideContent.leftLabel,
+                                      ),
+                                    ),
+                                  ),
+                                  ClipRect(
+                                    clipper: _RightRectClipper(
+                                      dividerLocalX,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.topRight,
+                                      child: RepaintBoundary(
+                                        child: sideContent.rightLabel,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                  if (showLabels && isStaticLabels)
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: RepaintBoundary(
-                        child: sideContent.rightLabel,
+                      RepaintBoundary(
+                        child: overlay,
                       ),
-                    ),
-                ],
-              ),
-            ),
+                      if (showLabels && isStaticLabels)
+                        Align(
+                          alignment: Alignment.topLeft,
+                          child: RepaintBoundary(
+                            child: sideContent.leftLabel,
+                          ),
+                        ),
+                      if (showLabels && isStaticLabels)
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: RepaintBoundary(
+                            child: sideContent.rightLabel,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+              return sceneBody;
+            },
           ),
         ),
       ],
