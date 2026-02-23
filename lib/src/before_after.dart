@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -13,6 +12,7 @@ import 'enums/label_behavior.dart';
 import 'enums/slider_drag_mode.dart';
 import 'options/before_after_interaction_options.dart';
 import 'options/before_after_labels_options.dart';
+import 'options/before_after_overlay_options.dart';
 import 'options/before_after_zoom_options.dart';
 import 'options/overlay_style.dart';
 import 'options/pointer_zoom_options.dart';
@@ -21,10 +21,15 @@ import 'widgets/default_overlay.dart';
 import 'widgets/labels.dart';
 
 part 'core/before_after_config.dart';
+
 part 'core/before_after_gesture_state.dart';
+
 part 'core/before_after_gestures.dart';
+
 part 'core/before_after_labels.dart';
+
 part 'core/before_after_models.dart';
+
 part 'core/before_after_scene.dart';
 
 /// A unified before/after comparison widget for arbitrary widgets.
@@ -41,28 +46,12 @@ class BeforeAfter extends StatefulWidget {
     this.interactionOptions = const BeforeAfterInteractionOptions(),
     this.zoomOptions = const BeforeAfterZoomOptions(),
     this.viewportAspectRatio,
+    this.autoViewportAspectRatioFromImage = false,
     this.contentOrder = ContentOrder.beforeAfter,
-    this.overlayStyle = const OverlayStyle(),
+    this.overlayOptions = const BeforeAfterOverlayOptions(),
     this.labelsOptions = const BeforeAfterLabelsOptions(),
-    this.overlay,
     this.zoomController,
-    this.enableReverseZoomVisualEffect = false,
-    this.reverseZoomMinScale = 0.92,
-    this.reverseZoomMaxShrink = 0.18,
-    this.reverseZoomEffectBorderRadius = 0.0,
-  })  : assert(
-          reverseZoomMinScale > 0 && reverseZoomMinScale <= 1.0,
-          'reverseZoomMinScale must be in (0.0, 1.0]',
-        ),
-        assert(
-          reverseZoomMaxShrink >= 0.0 && reverseZoomMaxShrink <= 0.4,
-          'reverseZoomMaxShrink must be in [0.0, 0.4]',
-        ),
-        assert(
-          reverseZoomEffectBorderRadius >= 0.0,
-          'reverseZoomEffectBorderRadius must be >= 0.0',
-        ),
-        assert(
+  }) : assert(
           viewportAspectRatio == null || viewportAspectRatio > 0.0,
           'viewportAspectRatio must be > 0.0',
         );
@@ -99,34 +88,21 @@ class BeforeAfter extends StatefulWidget {
   /// full available size while zooming.
   final double? viewportAspectRatio;
 
+  /// When true and [viewportAspectRatio] is null, tries to derive the viewport
+  /// aspect ratio from direct [Image] children.
+  final bool autoViewportAspectRatioFromImage;
+
   /// The order in which before and after content is displayed.
   final ContentOrder contentOrder;
 
-  /// Style configuration for the overlay (divider and thumb).
-  final OverlayStyle overlayStyle;
+  /// Grouped overlay options.
+  final BeforeAfterOverlayOptions overlayOptions;
 
   /// Grouped labels options.
   final BeforeAfterLabelsOptions labelsOptions;
 
-  /// Custom overlay widget builder. If null, uses [DefaultOverlay].
-  final Widget Function(Size size, Offset position)? overlay;
-
   /// Controller for programmatic zoom/pan control.
   final ZoomController? zoomController;
-
-  /// Adds a visual "container shrink" effect while zooming out.
-  ///
-  /// This only affects rendering feedback and does not change actual zoom math.
-  final bool enableReverseZoomVisualEffect;
-
-  /// Minimum visual scale used by [enableReverseZoomVisualEffect].
-  final double reverseZoomMinScale;
-
-  /// Maximum visual shrink amount used by [enableReverseZoomVisualEffect].
-  final double reverseZoomMaxShrink;
-
-  /// Corner radius for the visual reverse zoom container.
-  final double reverseZoomEffectBorderRadius;
 
   @override
   State<BeforeAfter> createState() => _BeforeAfterState();
@@ -135,9 +111,16 @@ class BeforeAfter extends StatefulWidget {
 class _BeforeAfterState extends State<BeforeAfter> {
   late final ValueNotifier<double> _progressNotifier;
   late final ValueNotifier<double> _containerVisualScaleTargetNotifier;
+  late final ValueNotifier<bool> _isPrimaryPointerDownNotifier;
+  late Listenable _cursorListenable;
 
   late ZoomController _zoomController;
   bool _ownsZoomController = false;
+  double? _autoViewportAspectRatio;
+  ImageStream? _autoAspectImageStream;
+  ImageStreamListener? _autoAspectImageStreamListener;
+  ImageProvider<Object>? _autoAspectImageProvider;
+  ImageConfiguration? _autoAspectImageConfiguration;
 
   final _gesture = _GestureSessionState();
   bool _hasScheduledProgressCallback = false;
@@ -148,7 +131,9 @@ class _BeforeAfterState extends State<BeforeAfter> {
     super.initState();
     _progressNotifier = ValueNotifier<double>(widget.progress ?? 0.5);
     _containerVisualScaleTargetNotifier = ValueNotifier<double>(1.0);
+    _isPrimaryPointerDownNotifier = ValueNotifier<bool>(false);
     _initZoomController();
+    _rebuildCursorListenable();
     _zoomController.addListener(_onZoomControllerChanged);
   }
 
@@ -158,20 +143,57 @@ class _BeforeAfterState extends State<BeforeAfter> {
     if (widget.progress != null && widget.progress != _progressNotifier.value) {
       _progressNotifier.value = widget.progress!;
     }
-    if (widget.zoomController != oldWidget.zoomController) {
+    final zoomControllerChanged =
+        widget.zoomController != oldWidget.zoomController;
+    final runtimeChangedForInternalController = widget.zoomController == null &&
+        oldWidget.zoomController == null &&
+        widget.zoomOptions.runtime != oldWidget.zoomOptions.runtime;
+
+    if (zoomControllerChanged || runtimeChangedForInternalController) {
+      final prevZoom = _zoomController.zoom;
+      final prevPan = _zoomController.pan;
+      final prevRotation = _zoomController.rotation;
+
       _zoomController.removeListener(_onZoomControllerChanged);
       if (_ownsZoomController) {
         _zoomController.dispose();
       }
-      _initZoomController();
+      if (widget.zoomController != null) {
+        _zoomController = widget.zoomController!;
+        _ownsZoomController = false;
+      } else {
+        _zoomController = widget.zoomOptions.runtime.createController(
+          initialZoom: prevZoom,
+          initialPan: prevPan,
+          initialRotation: prevRotation,
+        );
+        _ownsZoomController = true;
+      }
+      _rebuildCursorListenable();
       _zoomController.addListener(_onZoomControllerChanged);
+    }
+
+    if (widget.viewportAspectRatio != oldWidget.viewportAspectRatio ||
+        widget.autoViewportAspectRatioFromImage !=
+            oldWidget.autoViewportAspectRatioFromImage ||
+        widget.beforeChild != oldWidget.beforeChild ||
+        widget.afterChild != oldWidget.afterChild) {
+      _resolveAutoViewportAspectRatio();
     }
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolveAutoViewportAspectRatio();
+  }
+
+  @override
   void dispose() {
+    _stopAutoAspectRatioListener();
     _progressNotifier.dispose();
     _containerVisualScaleTargetNotifier.dispose();
+    _isPrimaryPointerDownNotifier.dispose();
     _zoomController.removeListener(_onZoomControllerChanged);
     if (_ownsZoomController) {
       _zoomController.dispose();
@@ -188,6 +210,83 @@ class _BeforeAfterState extends State<BeforeAfter> {
       _zoomController = runtime.createController();
       _ownsZoomController = true;
     }
+  }
+
+  ImageProvider<Object>? _extractImageProvider(Widget child) {
+    if (child is Image) return child.image;
+    return null;
+  }
+
+  void _stopAutoAspectRatioListener() {
+    final stream = _autoAspectImageStream;
+    final listener = _autoAspectImageStreamListener;
+    if (stream != null && listener != null) {
+      stream.removeListener(listener);
+    }
+    _autoAspectImageStream = null;
+    _autoAspectImageStreamListener = null;
+    _autoAspectImageProvider = null;
+    _autoAspectImageConfiguration = null;
+  }
+
+  void _setAutoViewportAspectRatio(double? value) {
+    final current = _autoViewportAspectRatio;
+    if (current == null && value == null) return;
+    if (current != null && value != null && (current - value).abs() < 0.0001) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _autoViewportAspectRatio = value;
+    });
+  }
+
+  void _resolveAutoViewportAspectRatio() {
+    if (!widget.autoViewportAspectRatioFromImage ||
+        widget.viewportAspectRatio != null) {
+      _stopAutoAspectRatioListener();
+      _setAutoViewportAspectRatio(null);
+      return;
+    }
+
+    final provider = _extractImageProvider(widget.beforeChild) ??
+        _extractImageProvider(widget.afterChild);
+    if (provider == null) {
+      _stopAutoAspectRatioListener();
+      _setAutoViewportAspectRatio(null);
+      return;
+    }
+
+    final configuration = createLocalImageConfiguration(context);
+    final providerUnchanged = _autoAspectImageProvider == provider;
+    final configurationUnchanged =
+        _autoAspectImageConfiguration == configuration;
+    if (providerUnchanged &&
+        configurationUnchanged &&
+        _autoAspectImageStream != null &&
+        _autoAspectImageStreamListener != null) {
+      return;
+    }
+
+    _stopAutoAspectRatioListener();
+    final stream = provider.resolve(configuration);
+    final listener = ImageStreamListener((imageInfo, _) {
+      final width = imageInfo.image.width;
+      final height = imageInfo.image.height;
+      if (width <= 0 || height <= 0) return;
+      _setAutoViewportAspectRatio(width / height);
+    });
+    _autoAspectImageStream = stream;
+    _autoAspectImageStreamListener = listener;
+    _autoAspectImageProvider = provider;
+    _autoAspectImageConfiguration = configuration;
+    stream.addListener(listener);
+  }
+
+  void _rebuildCursorListenable() {
+    _cursorListenable = Listenable.merge(
+      [_zoomController, _isPrimaryPointerDownNotifier],
+    );
   }
 
   double get _containerVisualScaleTarget =>
@@ -217,11 +316,6 @@ class _BeforeAfterState extends State<BeforeAfter> {
   void _onZoomControllerChanged() {
     if (!mounted) return;
     _updateContainerScaleFromZoom();
-  }
-
-  void _refreshPointerCursor() {
-    if (!mounted) return;
-    setState(() {});
   }
 
   @override
@@ -263,12 +357,10 @@ class _BeforeAfterState extends State<BeforeAfter> {
                 enableZoom: _isZoomEnabled,
                 showLabels: _effectiveShowLabels,
                 labelBehavior: _effectiveLabelBehavior,
-                enableReverseZoomVisualEffect:
-                    widget.enableReverseZoomVisualEffect,
                 reverseZoomEffectBorderRadius:
-                    widget.reverseZoomEffectBorderRadius,
-                overlayBuilder: widget.overlay,
-                overlayStyle: widget.overlayStyle,
+                    _effectiveReverseZoomEffectBorderRadius,
+                overlayBuilder: widget.overlayOptions.builder,
+                overlayStyle: widget.overlayOptions.style,
                 zoomController: _zoomController,
               );
 
@@ -284,25 +376,26 @@ class _BeforeAfterState extends State<BeforeAfter> {
                 child: scene,
               );
 
-              final sceneWithCursor = _isDesktopLike && _effectiveShowPointerCursor
-                  ? AnimatedBuilder(
-                      animation: _zoomController,
-                      child: pointerLayer,
-                      builder: (context, child) {
-                        final canPanZoomedContent = _isZoomEnabled &&
-                            _zoomController.effectiveZoom > 1.001;
-                        final cursor = canPanZoomedContent
-                            ? (_gesture.isPrimaryPointerDown
-                                ? _effectiveZoomedDraggingCursor
-                                : _effectiveZoomedCursor)
-                            : _effectiveIdleCursor;
-                        return MouseRegion(
-                          cursor: cursor,
-                          child: child!,
-                        );
-                      },
-                    )
-                  : pointerLayer;
+              final sceneWithCursor =
+                  _isDesktopLike && _effectiveShowPointerCursor
+                      ? AnimatedBuilder(
+                          animation: _cursorListenable,
+                          child: pointerLayer,
+                          builder: (context, child) {
+                            final canPanZoomedContent = _isZoomEnabled &&
+                                _zoomController.effectiveZoom > 1.001;
+                            final cursor = canPanZoomedContent
+                                ? (_isPrimaryPointerDownNotifier.value
+                                    ? _effectiveZoomedDraggingCursor
+                                    : _effectiveZoomedCursor)
+                                : _effectiveIdleCursor;
+                            return MouseRegion(
+                              cursor: cursor,
+                              child: child!,
+                            );
+                          },
+                        )
+                      : pointerLayer;
 
               final gestureLayer = GestureDetector(
                 onScaleStart: _onScaleStart,
@@ -325,6 +418,10 @@ class _BeforeAfterState extends State<BeforeAfter> {
                   child: gestureLayer,
                 ),
               );
+            }
+
+            if (!_hasContainerVisualScaleEffect) {
+              return buildSceneWithScale(1.0);
             }
 
             if (_effectiveEnableContainerScaleOnZoom) {

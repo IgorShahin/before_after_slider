@@ -1,6 +1,9 @@
 part of '../before_after.dart';
 
 extension _BeforeAfterConfigX on _BeforeAfterState {
+  double? get _effectiveViewportAspectRatio =>
+      widget.viewportAspectRatio ?? _autoViewportAspectRatio;
+
   bool get _isDoubleTapZoomEnabled => widget.zoomOptions.enableDoubleTapZoom;
 
   bool get _isZoomEnabled => widget.zoomOptions.enabled;
@@ -41,11 +44,24 @@ extension _BeforeAfterConfigX on _BeforeAfterState {
       widget.zoomOptions.containerScaleZoomRange;
 
   bool get _hasContainerVisualScaleEffect =>
-      widget.enableReverseZoomVisualEffect ||
+      _effectiveEnableReverseZoomVisualEffect ||
       _effectiveEnableContainerScaleOnZoom;
 
-  double get _minContainerVisualScale =>
-      widget.enableReverseZoomVisualEffect ? widget.reverseZoomMinScale : 1.0;
+  bool get _effectiveEnableReverseZoomVisualEffect =>
+      widget.zoomOptions.enableReverseZoomVisualEffect;
+
+  double get _effectiveReverseZoomMinScale =>
+      widget.zoomOptions.reverseZoomMinScale;
+
+  double get _effectiveReverseZoomMaxShrink =>
+      widget.zoomOptions.reverseZoomMaxShrink;
+
+  double get _effectiveReverseZoomEffectBorderRadius =>
+      widget.zoomOptions.reverseZoomEffectBorderRadius;
+
+  double get _minContainerVisualScale => _effectiveEnableReverseZoomVisualEffect
+      ? _effectiveReverseZoomMinScale
+      : 1.0;
 
   double get _maxContainerVisualScale =>
       _effectiveEnableContainerScaleOnZoom ? _effectiveContainerScaleMax : 1.0;

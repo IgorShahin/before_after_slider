@@ -3,17 +3,20 @@ part of '../before_after.dart';
 extension _BeforeAfterGesturesX on _BeforeAfterState {
   static const double _containerScaleStartZoom = 1.0;
   static const double _containerScaleResponseFactor = 1.9;
-  static const double _containerScaleSmoothing = 0.16;
   static const double _webPointerZoomBoost = 1.85;
   static const double _desktopPanToZoomDamping = 0.58;
+  static const double _dragThreshold = 0.0005;
+  static const double _zoomBoostClampSteps = 10.0;
 
   double _targetContainerGrowScaleFromZoom(double zoom) {
     if (zoom <= _containerScaleStartZoom) return 1.0;
     final progress = ((zoom - _containerScaleStartZoom) /
             (_effectiveContainerScaleZoomRange * _containerScaleResponseFactor))
         .clamp(0.0, 1.0);
-    // Keep response slower than zoom, but with immediate start from first delta.
-    return 1.0 + (_effectiveContainerScaleMax - 1.0) * progress;
+    // Follow zoom continuously (no lag accumulation), while keeping
+    // container response softer than zoom itself.
+    final eased = Curves.easeOutCubic.transform(progress);
+    return 1.0 + (_effectiveContainerScaleMax - 1.0) * eased;
   }
 
   void _updateContainerScaleFromZoom() {
@@ -21,28 +24,15 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     final nextScale = _targetContainerGrowScaleFromZoom(
       _zoomController.effectiveZoom,
     );
-
-    // Start immediately with first zoom delta.
-    if (_containerVisualScaleTarget <= 1.0005 && nextScale > 1.0005) {
-      final immediate = 1.0 + (nextScale - 1.0) * 0.4;
-      _setContainerVisualScaleTarget(immediate);
-      return;
-    }
-
-    final smoothed = _containerVisualScaleTarget +
-        (nextScale - _containerVisualScaleTarget) * _containerScaleSmoothing;
-    if ((_containerVisualScaleTarget - smoothed).abs() > 0.0015) {
-      _setContainerVisualScaleTarget(smoothed);
-    } else if ((nextScale - 1.0).abs() < 0.0005 &&
-        _containerVisualScaleTarget != 1.0) {
-      _setContainerVisualScaleTarget(1.0);
+    if ((_containerVisualScaleTarget - nextScale).abs() > 0.0005) {
+      _setContainerVisualScaleTarget(nextScale);
     }
   }
 
   _VisualGeometry _visualGeometry(Size fullSize, double visualScale) {
     var fittedWidth = fullSize.width;
     var fittedHeight = fullSize.height;
-    final aspectRatio = widget.viewportAspectRatio;
+    final aspectRatio = _effectiveViewportAspectRatio;
     if (aspectRatio != null && aspectRatio > 0.0) {
       final heightFromWidth = fullSize.width / aspectRatio;
       if (heightFromWidth <= fullSize.height) {
@@ -64,8 +54,8 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
           ? ((visualScale - 1.0) / (maxScale - 1.0)).clamp(0.0, 1.0)
           : 1.0;
       final eased = Curves.easeInOutCubic.transform(progress);
-      width = lerpDouble(fittedWidth, fullSize.width, eased) ?? fittedWidth;
-      height = lerpDouble(fittedHeight, fullSize.height, eased) ?? fittedHeight;
+      width = fittedWidth + (fullSize.width - fittedWidth) * eased;
+      height = fittedHeight + (fullSize.height - fittedHeight) * eased;
 
       final isAtFullBounds = (width - fullSize.width).abs() < 0.5 &&
           (height - fullSize.height).abs() < 0.5;
@@ -88,16 +78,34 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     );
   }
 
+  _VisualGeometry _currentVisualGeometry(Size fullSize) {
+    final visualScale = _currentVisualScale();
+    return _visualGeometry(fullSize, visualScale);
+  }
+
+  double _currentVisualScale() {
+    if (!_hasContainerVisualScaleEffect) return 1.0;
+    return _containerVisualScaleTarget.clamp(
+      _minContainerVisualScale,
+      _maxContainerVisualScale,
+    );
+  }
+
+  Size _zoomViewportSize(_VisualGeometry visual, Size fallback) {
+    if (visual.width <= 0 || visual.height <= 0) return fallback;
+    return Size(visual.width, visual.height);
+  }
+
+  Offset _toZoomViewportFocal(Offset localPosition, _VisualGeometry visual) {
+    final dx = (localPosition.dx - visual.offsetX).clamp(0.0, visual.width);
+    final dy = (localPosition.dy - visual.offsetY).clamp(0.0, visual.height);
+    return Offset(dx, dy);
+  }
+
   void _updateProgress(double screenX, Size fullSize) {
-    final visualScale = _hasContainerVisualScaleEffect
-        ? _containerVisualScaleTarget.clamp(
-            _minContainerVisualScale,
-            _maxContainerVisualScale,
-          )
-        : 1.0;
-    final visual = _visualGeometry(fullSize, visualScale);
+    final visual = _currentVisualGeometry(fullSize);
     final next = ((screenX - visual.offsetX) / visual.width).clamp(0.0, 1.0);
-    if ((_progressNotifier.value - next).abs() > 0.0005) {
+    if ((_progressNotifier.value - next).abs() > _dragThreshold) {
       _progressNotifier.value = next;
       _queueProgressChangedCallback(next);
     }
@@ -108,18 +116,12 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     Size fullSize,
     double progress,
   ) {
-    final visualScale = _hasContainerVisualScaleEffect
-        ? _containerVisualScaleTarget.clamp(
-            _minContainerVisualScale,
-            _maxContainerVisualScale,
-          )
-        : 1.0;
-    final visual = _visualGeometry(fullSize, visualScale);
+    final visual = _currentVisualGeometry(fullSize);
     final dividerScreenX = visual.offsetX + progress * visual.width;
-    final thumbCenterY = widget.overlayStyle.verticalThumbMove
+    final style = widget.overlayOptions.style;
+    final thumbCenterY = style.verticalThumbMove
         ? visual.offsetY + visual.height / 2
-        : visual.offsetY +
-            visual.height * (widget.overlayStyle.thumbPositionPercent / 100.0);
+        : visual.offsetY + visual.height * (style.thumbPositionPercent / 100.0);
     final zoom = _zoomController.effectiveZoom;
 
     switch (_effectiveSliderDragMode) {
@@ -151,10 +153,11 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     double offsetY,
     double visualHeight,
   ) {
-    final thumbSize = widget.overlayStyle.thumbSize;
-    final dividerWidth = widget.overlayStyle.dividerWidth;
+    final style = widget.overlayOptions.style;
+    final thumbSize = style.thumbSize;
+    final dividerWidth = style.dividerWidth;
     final zone = _effectiveSliderHitZone;
-    const zoomBoost = 0.0;
+    final zoomBoost = _sliderZoomBoost(zone);
     final hitHalfWidth = math.max(
           thumbSize / 2,
           math.max(dividerWidth * 2, zone.minLineHalfWidth),
@@ -172,18 +175,29 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     double dividerScreenX,
     double thumbCenterY,
   ) {
-    final thumbSize = widget.overlayStyle.thumbSize;
+    final style = widget.overlayOptions.style;
+    final thumbSize = style.thumbSize;
     final zone = _effectiveSliderHitZone;
-    const zoomBoost = 0.0;
+    final zoomBoost = _sliderZoomBoost(zone);
     final hitRadius = math.max(thumbSize / 2, zone.minThumbRadius) + zoomBoost;
 
     final dx = (localPosition.dx - dividerScreenX).abs();
     final dy = (localPosition.dy - thumbCenterY).abs();
 
-    if (widget.overlayStyle.thumbShape == BoxShape.circle) {
-      return math.sqrt(dx * dx + dy * dy) <= hitRadius;
+    if (style.thumbShape == BoxShape.circle) {
+      final squaredDistance = dx * dx + dy * dy;
+      final squaredRadius = hitRadius * hitRadius;
+      return squaredDistance <= squaredRadius;
     }
     return dx <= hitRadius && dy <= hitRadius;
+  }
+
+  double _sliderZoomBoost(SliderHitZone zone) {
+    final zoomSteps = (_zoomController.effectiveZoom - 1.0).clamp(
+      0.0,
+      _zoomBoostClampSteps,
+    );
+    return (zoomSteps * zone.zoomBoostPerStep).clamp(0.0, zone.maxZoomBoost);
   }
 
   void _onScaleStart(ScaleStartDetails details) {
@@ -216,7 +230,7 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     if (_isZoomEnabled &&
         _zoomController.zoom > 1.0 &&
         details.pointerCount == 1) {
-      if (_isDesktopLike && !_gesture.isPrimaryPointerDown) {
+      if (_isDesktopLike && !_isPrimaryPointerDownNotifier.value) {
         _gesture.lastPointerCount = details.pointerCount;
         return;
       }
@@ -237,16 +251,21 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
 
     final rawPanDelta = details.localFocalPoint -
         (_gesture.lastFocalPoint ?? details.localFocalPoint);
-    final panDelta = rawPanDelta * _effectiveZoomPanSensitivity;
+    final panDelta = _isDesktopLike
+        ? Offset.zero
+        : rawPanDelta * _effectiveZoomPanSensitivity;
     final rawZoomDelta = details.scale / (_gesture.lastScale ?? 1.0);
     final smoothedZoomDelta =
         1.0 + (rawZoomDelta - 1.0) * _effectiveGestureZoomSmoothing;
     final zoomDelta =
         (smoothedZoomDelta - 1.0).abs() < 0.0015 ? 1.0 : smoothedZoomDelta;
+    final visual = _currentVisualGeometry(fullSize);
+    final zoomViewportSize = _zoomViewportSize(visual, fullSize);
+    final focalPoint = _toZoomViewportFocal(details.localFocalPoint, visual);
 
     _zoomController.applyDesktopZoomPan(
-      containerSize: fullSize,
-      focalPoint: details.localFocalPoint,
+      containerSize: zoomViewportSize,
+      focalPoint: focalPoint,
       zoomScaleFactor: zoomDelta,
       panDelta: panDelta,
       allowOvershoot: true,
@@ -268,8 +287,10 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     final rawPanDelta = details.localFocalPoint -
         (_gesture.lastFocalPoint ?? details.localFocalPoint);
     final panDelta = rawPanDelta * _effectiveZoomPanSensitivity;
+    final visual = _currentVisualGeometry(fullSize);
+    final zoomViewportSize = _zoomViewportSize(visual, fullSize);
     _zoomController.updateFromGesture(
-      containerSize: fullSize,
+      containerSize: zoomViewportSize,
       panDelta: panDelta,
     );
 
@@ -293,10 +314,14 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
   }
 
   void _onDoubleTap(Size fullSize) {
-    final focalPoint = _gesture.lastDoubleTapFocalPoint ??
-        Offset(fullSize.width / 2, fullSize.height / 2);
+    final visual = _currentVisualGeometry(fullSize);
+    final zoomViewportSize = _zoomViewportSize(visual, fullSize);
+    final fallbackFocal = Offset(
+        visual.offsetX + visual.width / 2, visual.offsetY + visual.height / 2);
+    final rawFocalPoint = _gesture.lastDoubleTapFocalPoint ?? fallbackFocal;
+    final focalPoint = _toZoomViewportFocal(rawFocalPoint, visual);
     _zoomController.toggleDoubleTapZoom(
-      containerSize: fullSize,
+      containerSize: zoomViewportSize,
       focalPoint: focalPoint,
       targetZoom: _effectiveDoubleTapZoomScale,
       duration: _effectiveDoubleTapZoomDuration,
@@ -337,9 +362,13 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
             kIsWeb ? sensitivity * _webPointerZoomBoost : sensitivity;
 
         final factor = math.exp(-effectiveDelta * normalizedSensitivity);
+        final visual = _currentVisualGeometry(fullSize);
+        final zoomViewportSize = _zoomViewportSize(visual, fullSize);
+        final focalPoint =
+            _toZoomViewportFocal(scrollEvent.localPosition, visual);
         _zoomController.applyDesktopZoomPan(
-          containerSize: fullSize,
-          focalPoint: scrollEvent.localPosition,
+          containerSize: zoomViewportSize,
+          focalPoint: focalPoint,
           zoomScaleFactor: factor,
           panDelta: Offset.zero,
           allowOvershoot: false,
@@ -355,27 +384,24 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     if (event.kind == PointerDeviceKind.mouse) {
       final isDown = event.buttons == kPrimaryButton ||
           (event.buttons & kPrimaryButton) != 0;
-      if (_gesture.isPrimaryPointerDown != isDown) {
-        _gesture.isPrimaryPointerDown = isDown;
-        _refreshPointerCursor();
+      if (_isPrimaryPointerDownNotifier.value != isDown) {
+        _isPrimaryPointerDownNotifier.value = isDown;
       }
     }
   }
 
   void _onPointerUp(PointerUpEvent event) {
     if (event.kind == PointerDeviceKind.mouse) {
-      if (_gesture.isPrimaryPointerDown) {
-        _gesture.isPrimaryPointerDown = false;
-        _refreshPointerCursor();
+      if (_isPrimaryPointerDownNotifier.value) {
+        _isPrimaryPointerDownNotifier.value = false;
       }
     }
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
     if (event.kind == PointerDeviceKind.mouse) {
-      if (_gesture.isPrimaryPointerDown) {
-        _gesture.isPrimaryPointerDown = false;
-        _refreshPointerCursor();
+      if (_isPrimaryPointerDownNotifier.value) {
+        _isPrimaryPointerDownNotifier.value = false;
       }
     }
   }
@@ -411,10 +437,13 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     }
 
     if ((zoomDelta - 1.0).abs() <= 0.0001) return;
+    final visual = _currentVisualGeometry(fullSize);
+    final zoomViewportSize = _zoomViewportSize(visual, fullSize);
+    final focalPoint = _toZoomViewportFocal(event.localPosition, visual);
 
     _zoomController.applyDesktopZoomPan(
-      containerSize: fullSize,
-      focalPoint: event.localPosition,
+      containerSize: zoomViewportSize,
+      focalPoint: focalPoint,
       zoomScaleFactor: zoomDelta,
       panDelta: panDelta,
       allowOvershoot: true,
@@ -451,7 +480,7 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
   }
 
   void _updateContainerVisualScaleEffect(double gestureScale) {
-    final enableReverse = widget.enableReverseZoomVisualEffect;
+    final enableReverse = _effectiveEnableReverseZoomVisualEffect;
     final enableGrow = _effectiveEnableContainerScaleOnZoom;
     if (!enableReverse && !enableGrow) return;
 
@@ -464,8 +493,8 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
       final effectStrength = Curves.easeOutCubic.transform(
         (1.0 - gestureScale).clamp(0.0, 1.0),
       );
-      nextScale = (1.0 - effectStrength * widget.reverseZoomMaxShrink)
-          .clamp(widget.reverseZoomMinScale, 1.0);
+      nextScale = (1.0 - effectStrength * _effectiveReverseZoomMaxShrink)
+          .clamp(_effectiveReverseZoomMinScale, 1.0);
     }
 
     final smoothed = _containerVisualScaleTarget +

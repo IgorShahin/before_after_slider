@@ -9,7 +9,6 @@ class _BeforeAfterScene extends StatelessWidget {
     required this.enableZoom,
     required this.showLabels,
     required this.labelBehavior,
-    required this.enableReverseZoomVisualEffect,
     required this.reverseZoomEffectBorderRadius,
     required this.overlayBuilder,
     required this.overlayStyle,
@@ -23,7 +22,6 @@ class _BeforeAfterScene extends StatelessWidget {
   final bool enableZoom;
   final bool showLabels;
   final LabelBehavior labelBehavior;
-  final bool enableReverseZoomVisualEffect;
   final double reverseZoomEffectBorderRadius;
   final Widget Function(Size size, Offset position)? overlayBuilder;
   final OverlayStyle overlayStyle;
@@ -91,11 +89,6 @@ class _BeforeAfterScene extends StatelessWidget {
           style: overlayStyle,
         );
 
-    final shrinkStrength =
-        (1.0 - visual.width / fullSize.width).clamp(0.0, 1.0);
-    final shadowAlpha = enableReverseZoomVisualEffect
-        ? (0.05 + shrinkStrength * 0.18).clamp(0.0, 0.3)
-        : 0.0;
     final radius = reverseZoomEffectBorderRadius;
 
     return Stack(
@@ -103,89 +96,71 @@ class _BeforeAfterScene extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Center(
-          child: Builder(
-            builder: (context) {
-              final contentLayer = ClipRRect(
-                borderRadius: BorderRadius.circular(radius),
-                child: zoomableContent,
-              );
-              final sceneBody = SizedBox(
-                width: visual.width,
-                height: visual.height,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(radius),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: shadowAlpha),
-                        blurRadius: 22,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          contentLayer,
-                          if (showLabels && isAttachedLabels)
-                            Positioned.fill(
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  ClipRect(
-                                    clipper: _LeftRectClipper(
-                                      dividerLocalX,
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.topLeft,
-                                      child: RepaintBoundary(
-                                        child: sideContent.leftLabel,
-                                      ),
-                                    ),
-                                  ),
-                                  ClipRect(
-                                    clipper: _RightRectClipper(
-                                      dividerLocalX,
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.topRight,
-                                      child: RepaintBoundary(
-                                        child: sideContent.rightLabel,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+          child: SizedBox(
+            width: visual.width,
+            height: visual.height,
+            child: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.none,
+              children: [
+                Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(radius),
+                      child: zoomableContent,
+                    ),
+                    if (showLabels && isAttachedLabels)
+                      Positioned.fill(
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ClipRect(
+                              clipper: _LeftRectClipper(
+                                dividerLocalX,
+                              ),
+                              child: Align(
+                                alignment: Alignment.topLeft,
+                                child: RepaintBoundary(
+                                  child: sideContent.leftLabel,
+                                ),
                               ),
                             ),
-                        ],
-                      ),
-                      RepaintBoundary(
-                        child: overlay,
-                      ),
-                      if (showLabels && isStaticLabels)
-                        Align(
-                          alignment: Alignment.topLeft,
-                          child: RepaintBoundary(
-                            child: sideContent.leftLabel,
-                          ),
+                            ClipRect(
+                              clipper: _RightRectClipper(
+                                dividerLocalX,
+                              ),
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: RepaintBoundary(
+                                  child: sideContent.rightLabel,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      if (showLabels && isStaticLabels)
-                        Align(
-                          alignment: Alignment.topRight,
-                          child: RepaintBoundary(
-                            child: sideContent.rightLabel,
-                          ),
-                        ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-              );
-              return sceneBody;
-            },
+                RepaintBoundary(
+                  child: overlay,
+                ),
+                if (showLabels && isStaticLabels)
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: RepaintBoundary(
+                      child: sideContent.leftLabel,
+                    ),
+                  ),
+                if (showLabels && isStaticLabels)
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: RepaintBoundary(
+                      child: sideContent.rightLabel,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ],
