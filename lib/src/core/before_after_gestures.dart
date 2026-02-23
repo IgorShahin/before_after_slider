@@ -80,7 +80,19 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
 
   _VisualGeometry _currentVisualGeometry(Size fullSize) {
     final visualScale = _currentVisualScale();
-    return _visualGeometry(fullSize, visualScale);
+    final cached = _visualGeometryCache;
+    if (cached != null &&
+        _visualGeometryCacheSize == fullSize &&
+        _visualGeometryCacheScale != null &&
+        (_visualGeometryCacheScale! - visualScale).abs() < 0.0001) {
+      return cached;
+    }
+
+    final computed = _visualGeometry(fullSize, visualScale);
+    _visualGeometryCache = computed;
+    _visualGeometryCacheSize = fullSize;
+    _visualGeometryCacheScale = visualScale;
+    return computed;
   }
 
   double _currentVisualScale() {
@@ -118,12 +130,40 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     Size fullSize,
     double progress,
   ) {
+    final geometry = _computeSliderHitTestGeometry(
+      fullSize: fullSize,
+      progress: progress,
+    );
+    final zoom = _zoomController.effectiveZoom;
+
+    switch (_effectiveSliderDragMode) {
+      case SliderDragMode.thumbOnly:
+        if (_isOnThumb(localPosition, geometry)) {
+          return true;
+        }
+        return _effectiveSliderHitZone.allowLineFallbackWhenThumbOnlyZoomed &&
+            zoom > 1.001 &&
+            _isOnOverlayLine(localPosition, geometry: geometry);
+      case SliderDragMode.fullOverlay:
+        return _isOnOverlayLine(localPosition, geometry: geometry);
+    }
+  }
+
+  _SliderHitTestGeometry _computeSliderHitTestGeometry({
+    required Size fullSize,
+    required double progress,
+  }) {
     final visual = _currentVisualGeometry(fullSize);
     final isHorizontal =
         _effectiveSliderOrientation == SliderOrientation.horizontal;
+    final style = widget.overlayOptions.style;
+    final zone = _effectiveSliderHitZone;
+    final zoomBoost = _sliderZoomBoost(zone);
     final dividerScreenX = visual.offsetX + progress * visual.width;
     final dividerScreenY = visual.offsetY + progress * visual.height;
-    final style = widget.overlayOptions.style;
+    final dividerScreen = isHorizontal ? dividerScreenX : dividerScreenY;
+    final crossAxisStart = isHorizontal ? visual.offsetY : visual.offsetX;
+    final crossAxisExtent = isHorizontal ? visual.height : visual.width;
     final thumbCenter = isHorizontal
         ? Offset(
             dividerScreenX,
@@ -139,80 +179,56 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
                     visual.width * (style.thumbPositionPercent / 100.0),
             dividerScreenY,
           );
-    final zoom = _zoomController.effectiveZoom;
+    final lineHitHalfWidth = math.max(
+          style.thumbSize / 2,
+          math.max(style.dividerWidth * 2, zone.minLineHalfWidth),
+        ) +
+        zoomBoost;
+    final crossAxisPadding = zone.verticalPadding + zoomBoost * 0.5;
+    final thumbHitRadius =
+        math.max(style.thumbSize / 2, zone.minThumbRadius) + zoomBoost;
 
-    switch (_effectiveSliderDragMode) {
-      case SliderDragMode.thumbOnly:
-        if (_isOnThumb(localPosition, thumbCenter)) {
-          return true;
-        }
-        return _effectiveSliderHitZone.allowLineFallbackWhenThumbOnlyZoomed &&
-            zoom > 1.001 &&
-            _isOnOverlayLine(
-              localPosition,
-              dividerScreen: isHorizontal ? dividerScreenX : dividerScreenY,
-              crossAxisStart: isHorizontal ? visual.offsetY : visual.offsetX,
-              crossAxisExtent: isHorizontal ? visual.height : visual.width,
-              isHorizontal: isHorizontal,
-            );
-      case SliderDragMode.fullOverlay:
-        return _isOnOverlayLine(
-          localPosition,
-          dividerScreen: isHorizontal ? dividerScreenX : dividerScreenY,
-          crossAxisStart: isHorizontal ? visual.offsetY : visual.offsetX,
-          crossAxisExtent: isHorizontal ? visual.height : visual.width,
-          isHorizontal: isHorizontal,
-        );
-    }
+    return _SliderHitTestGeometry(
+      isHorizontal: isHorizontal,
+      dividerScreen: dividerScreen,
+      crossAxisStart: crossAxisStart,
+      crossAxisExtent: crossAxisExtent,
+      thumbCenter: thumbCenter,
+      lineHitHalfWidth: lineHitHalfWidth,
+      crossAxisPadding: crossAxisPadding,
+      thumbHitRadius: thumbHitRadius,
+      thumbShape: style.thumbShape,
+    );
   }
 
   bool _isOnOverlayLine(
     Offset localPosition, {
-    required double dividerScreen,
-    required double crossAxisStart,
-    required double crossAxisExtent,
-    required bool isHorizontal,
+    required _SliderHitTestGeometry geometry,
   }) {
-    final style = widget.overlayOptions.style;
-    final thumbSize = style.thumbSize;
-    final dividerWidth = style.dividerWidth;
-    final zone = _effectiveSliderHitZone;
-    final zoomBoost = _sliderZoomBoost(zone);
-    final hitHalfWidth = math.max(
-          thumbSize / 2,
-          math.max(dividerWidth * 2, zone.minLineHalfWidth),
-        ) +
-        zoomBoost;
-    final axisDistance = isHorizontal
-        ? (localPosition.dx - dividerScreen).abs()
-        : (localPosition.dy - dividerScreen).abs();
-    final verticalPadding = zone.verticalPadding + zoomBoost * 0.5;
-    final crossAxisValue = isHorizontal ? localPosition.dy : localPosition.dx;
-    final withinCrossAxis = crossAxisValue >=
-            crossAxisStart - verticalPadding &&
-        crossAxisValue <= crossAxisStart + crossAxisExtent + verticalPadding;
-    return axisDistance <= hitHalfWidth && withinCrossAxis;
+    final axisDistance = geometry.isHorizontal
+        ? (localPosition.dx - geometry.dividerScreen).abs()
+        : (localPosition.dy - geometry.dividerScreen).abs();
+    final crossAxisValue =
+        geometry.isHorizontal ? localPosition.dy : localPosition.dx;
+    final withinCrossAxis =
+        crossAxisValue >= geometry.crossAxisStart - geometry.crossAxisPadding &&
+            crossAxisValue <=
+                geometry.crossAxisStart +
+                    geometry.crossAxisExtent +
+                    geometry.crossAxisPadding;
+    return axisDistance <= geometry.lineHitHalfWidth && withinCrossAxis;
   }
 
-  bool _isOnThumb(
-    Offset localPosition,
-    Offset thumbCenter,
-  ) {
-    final style = widget.overlayOptions.style;
-    final thumbSize = style.thumbSize;
-    final zone = _effectiveSliderHitZone;
-    final zoomBoost = _sliderZoomBoost(zone);
-    final hitRadius = math.max(thumbSize / 2, zone.minThumbRadius) + zoomBoost;
+  bool _isOnThumb(Offset localPosition, _SliderHitTestGeometry geometry) {
+    final dx = (localPosition.dx - geometry.thumbCenter.dx).abs();
+    final dy = (localPosition.dy - geometry.thumbCenter.dy).abs();
 
-    final dx = (localPosition.dx - thumbCenter.dx).abs();
-    final dy = (localPosition.dy - thumbCenter.dy).abs();
-
-    if (style.thumbShape == BoxShape.circle) {
+    if (geometry.thumbShape == BoxShape.circle) {
       final squaredDistance = dx * dx + dy * dy;
-      final squaredRadius = hitRadius * hitRadius;
+      final squaredRadius = geometry.thumbHitRadius * geometry.thumbHitRadius;
       return squaredDistance <= squaredRadius;
     }
-    return dx <= hitRadius && dy <= hitRadius;
+    return dx <= geometry.thumbHitRadius && dy <= geometry.thumbHitRadius;
   }
 
   double _sliderZoomBoost(SliderHitZone zone) {
@@ -526,4 +542,28 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
       _setContainerVisualScaleTarget(smoothed);
     }
   }
+}
+
+class _SliderHitTestGeometry {
+  const _SliderHitTestGeometry({
+    required this.isHorizontal,
+    required this.dividerScreen,
+    required this.crossAxisStart,
+    required this.crossAxisExtent,
+    required this.thumbCenter,
+    required this.lineHitHalfWidth,
+    required this.crossAxisPadding,
+    required this.thumbHitRadius,
+    required this.thumbShape,
+  });
+
+  final bool isHorizontal;
+  final double dividerScreen;
+  final double crossAxisStart;
+  final double crossAxisExtent;
+  final Offset thumbCenter;
+  final double lineHitHalfWidth;
+  final double crossAxisPadding;
+  final double thumbHitRadius;
+  final BoxShape thumbShape;
 }

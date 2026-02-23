@@ -126,6 +126,12 @@ class _BeforeAfterState extends State<BeforeAfter> {
   final _gesture = _GestureSessionState();
   bool _hasScheduledProgressCallback = false;
   double? _pendingProgressCallback;
+  bool _labelsCacheDirty = true;
+  Widget? _cachedLeftLabel;
+  Widget? _cachedRightLabel;
+  Size? _visualGeometryCacheSize;
+  double? _visualGeometryCacheScale;
+  _VisualGeometry? _visualGeometryCache;
 
   @override
   void initState() {
@@ -141,6 +147,8 @@ class _BeforeAfterState extends State<BeforeAfter> {
   @override
   void didUpdateWidget(BeforeAfter oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _clearVisualGeometryCache();
+
     if (widget.progress != null && widget.progress != _progressNotifier.value) {
       _progressNotifier.value = widget.progress!;
     }
@@ -181,11 +189,18 @@ class _BeforeAfterState extends State<BeforeAfter> {
         widget.afterChild != oldWidget.afterChild) {
       _resolveAutoViewportAspectRatio();
     }
+
+    if (widget.labelsOptions != oldWidget.labelsOptions ||
+        widget.contentOrder != oldWidget.contentOrder) {
+      _markLabelsCacheDirty();
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _clearVisualGeometryCache();
+    _markLabelsCacheDirty();
     _resolveAutoViewportAspectRatio();
   }
 
@@ -237,9 +252,43 @@ class _BeforeAfterState extends State<BeforeAfter> {
       return;
     }
     if (!mounted) return;
+    _clearVisualGeometryCache();
     setState(() {
       _autoViewportAspectRatio = value;
     });
+  }
+
+  void _clearVisualGeometryCache() {
+    _visualGeometryCache = null;
+    _visualGeometryCacheSize = null;
+    _visualGeometryCacheScale = null;
+  }
+
+  void _markLabelsCacheDirty() {
+    _labelsCacheDirty = true;
+  }
+
+  void _ensureCachedLabels(BuildContext context) {
+    if (!_labelsCacheDirty &&
+        _cachedLeftLabel != null &&
+        _cachedRightLabel != null) {
+      return;
+    }
+
+    final beforeLabel = widget.labelsOptions.beforeBuilder?.call(context) ??
+        BeforeLabel(contentOrder: widget.contentOrder);
+    final afterLabel = widget.labelsOptions.afterBuilder?.call(context) ??
+        AfterLabel(contentOrder: widget.contentOrder);
+
+    if (widget.contentOrder == ContentOrder.beforeAfter) {
+      _cachedLeftLabel = beforeLabel;
+      _cachedRightLabel = afterLabel;
+    } else {
+      _cachedLeftLabel = afterLabel;
+      _cachedRightLabel = beforeLabel;
+    }
+
+    _labelsCacheDirty = false;
   }
 
   void _resolveAutoViewportAspectRatio() {
