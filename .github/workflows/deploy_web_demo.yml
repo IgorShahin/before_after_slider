@@ -9,7 +9,7 @@ on:
       - dev
     paths:
       - 'lib/**'
-      - 'example/**'
+      - 'showcase/**'
       - 'pubspec.yaml'
       - '.github/workflows/deploy_web_demo.yml'
 
@@ -34,12 +34,12 @@ jobs:
         with:
           channel: stable
 
-      - name: Flutter pub get (example)
-        working-directory: example
+      - name: Flutter pub get (showcase)
+        working-directory: showcase
         run: flutter pub get
 
       - name: Build web demo
-        working-directory: example
+        working-directory: showcase
         run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
       - name: Setup Pages
@@ -48,7 +48,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: example/build/web
+          path: showcase/build/web
 
   deploy:
     needs: build

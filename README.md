@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://igorshahin.github.io/before_after_slider/"><img src="https://img.shields.io/badge/Live%20Demo-Open%20Web%20Demo-1f6feb?style=for-the-badge" alt="Live Demo"></a>
-  <a href="https://github.com/IgorShahin/before_after_slider/tree/dev/example/lib/main.dart"><img src="https://img.shields.io/badge/Example-View%20Source-2ea44f?style=for-the-badge" alt="Example Source"></a>
+  <a href="https://github.com/IgorShahin/before_after_slider/tree/main/showcase/lib/main.dart"><img src="https://img.shields.io/badge/Showcase-View%20Source-2ea44f?style=for-the-badge" alt="Showcase Source"></a>
   <a href="https://github.com/IgorShahin/before_after_slider/issues"><img src="https://img.shields.io/badge/Support-Issues-orange?style=for-the-badge" alt="Issues"></a>
 </p>
 
@@ -18,7 +18,8 @@ A production-ready Flutter widget for before/after comparison with smooth divide
 ## Live Demo
 
 - Web demo: [Open in browser](https://igorshahin.github.io/before_after_slider/)
-- Example source: [example/lib/main.dart](example/lib/main.dart)
+- pub.dev example source: [example/lib/main.dart](example/lib/main.dart)
+- showcase source: [showcase/lib/main.dart](showcase/lib/main.dart)
 - CI deploy workflow: [.github/workflows/deploy_web_demo.yml](.github/workflows/deploy_web_demo.yml)
 
 For forks, enable **GitHub Pages -> Build and deployment -> GitHub Actions**.
@@ -39,6 +40,7 @@ For forks, enable **GitHub Pages -> Build and deployment -> GitHub Actions**.
 - Optional double-tap zoom
 - Grouped options API (`interaction`, `zoom`, `labels`, `overlay`)
 - External `ZoomController` support
+- Platform-adaptive demo app (web/desktop/mobile)
 
 ## Platform Support
 
@@ -200,6 +202,20 @@ If `PointerZoomOptions.requiresModifier = true`:
 
 - macOS: hold `Cmd` and use wheel/scroll
 - Windows/Linux/Web: hold `Ctrl` and use wheel/scroll
+
+## Demo Hosting
+
+This repository includes GitHub Pages deployment workflow:
+
+- [.github/workflows/deploy_web_demo.yml](.github/workflows/deploy_web_demo.yml)
+
+Setup:
+
+1. `Settings -> Pages -> Source: GitHub Actions`
+2. Run workflow `Deploy Web Demo` in `Actions`
+3. Open: [https://igorshahin.github.io/before_after_slider/](https://igorshahin.github.io/before_after_slider/)
+
+The workflow builds `showcase/` (not `example/`), so pub.dev example and web showcase can evolve independently.
 
 ## Migration
 
