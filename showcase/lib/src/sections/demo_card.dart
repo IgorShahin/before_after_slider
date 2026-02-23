@@ -80,40 +80,42 @@ class DemoCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          AnimatedBuilder(
-            animation: zoomController,
-            builder: (context, _) {
-              final info = _containerScaleInfo(
-                zoom: zoomController.effectiveZoom,
-                enabled: enableContainerScale,
-                maxScale: containerScaleMax,
-                zoomRange: containerScaleZoomRange,
-              );
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Live: zoom ${zoomController.effectiveZoom.toStringAsFixed(2)}x · '
-                    'container ${info.scale.toStringAsFixed(2)}x · '
-                    'expansion ${info.progressPercent.toStringAsFixed(0)}%',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF4B5563),
-                      fontWeight: FontWeight.w600,
+          RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: zoomController,
+              builder: (context, _) {
+                final info = _containerScaleInfo(
+                  zoom: zoomController.effectiveZoom,
+                  enabled: enableContainerScale,
+                  maxScale: containerScaleMax,
+                  zoomRange: containerScaleZoomRange,
+                );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Live: zoom ${zoomController.effectiveZoom.toStringAsFixed(2)}x · '
+                      'container ${info.scale.toStringAsFixed(2)}x · '
+                      'expansion ${info.progressPercent.toStringAsFixed(0)}%',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF4B5563),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      minHeight: 6,
-                      value: info.progressPercent / 100,
-                      backgroundColor: const Color(0xFFE6ECF8),
-                      color: const Color(0xFF3169D9),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        minHeight: 6,
+                        value: info.progressPercent / 100,
+                        backgroundColor: const Color(0xFFE6ECF8),
+                        color: const Color(0xFF3169D9),
+                      ),
                     ),
-                  ),
-                ],
-              );
-            },
+                  ],
+                );
+              },
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -132,58 +134,60 @@ class DemoCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: ValueListenableBuilder<double>(
-                  valueListenable: progress,
-                  builder: (context, value, _) {
-                    return BeforeAfter(
-                      viewportAspectRatio: 3 / 4,
-                      beforeChild: Image.asset(
-                        'assets/before.jpeg',
-                        fit: BoxFit.cover,
-                      ),
-                      afterChild: Image.asset(
-                        'assets/after.jpeg',
-                        fit: BoxFit.cover,
-                      ),
-                      progress: value,
-                      onProgressChanged: (next) => progress.value = next,
-                      labelsOptions: BeforeAfterLabelsOptions(
-                        show: showLabels,
-                        behavior: labelBehavior,
-                        beforeBuilder: (_) => _label(
-                          text: 'Before',
-                          color: Colors.black.withValues(alpha: 0.78),
+                child: RepaintBoundary(
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: progress,
+                    builder: (context, value, _) {
+                      return BeforeAfter(
+                        viewportAspectRatio: 3 / 4,
+                        beforeChild: Image.asset(
+                          'assets/before.jpeg',
+                          fit: BoxFit.cover,
                         ),
-                        afterBuilder: (_) => _label(
-                          text: 'After',
-                          color:
-                              const Color(0xFF1E6FA8).withValues(alpha: 0.90),
+                        afterChild: Image.asset(
+                          'assets/after.jpeg',
+                          fit: BoxFit.cover,
                         ),
-                      ),
-                      interactionOptions: BeforeAfterInteractionOptions(
-                        sliderOrientation: sliderOrientation,
-                        sliderDragMode: dragMode,
-                        sliderHitZone: const SliderHitZone(
-                          minLineHalfWidth: 18,
-                          minThumbRadius: 30,
+                        progress: value,
+                        onProgressChanged: (next) => progress.value = next,
+                        labelsOptions: BeforeAfterLabelsOptions(
+                          show: showLabels,
+                          behavior: labelBehavior,
+                          beforeBuilder: (_) => _label(
+                            text: 'Before',
+                            color: Colors.black.withValues(alpha: 0.78),
+                          ),
+                          afterBuilder: (_) => _label(
+                            text: 'After',
+                            color:
+                                const Color(0xFF1E6FA8).withValues(alpha: 0.90),
+                          ),
                         ),
-                      ),
-                      zoomOptions: BeforeAfterZoomOptions(
-                        zoomPanSensitivity: 0.95,
-                        showPointerCursor: true,
-                        enableDoubleTapZoom: enableDoubleTapZoom,
-                        enableContainerScaleOnZoom: enableContainerScale,
-                        containerScaleMax: containerScaleMax,
-                        containerScaleZoomRange: containerScaleZoomRange,
-                        reverseZoomEffectBorderRadius: 12,
-                        pointer: const PointerZoomOptions(
-                          requiresModifier: true,
-                          smoothing: 0.4,
+                        interactionOptions: BeforeAfterInteractionOptions(
+                          sliderOrientation: sliderOrientation,
+                          sliderDragMode: dragMode,
+                          sliderHitZone: const SliderHitZone(
+                            minLineHalfWidth: 18,
+                            minThumbRadius: 30,
+                          ),
                         ),
-                      ),
-                      zoomController: zoomController,
-                    );
-                  },
+                        zoomOptions: BeforeAfterZoomOptions(
+                          zoomPanSensitivity: 0.95,
+                          showPointerCursor: true,
+                          enableDoubleTapZoom: enableDoubleTapZoom,
+                          enableContainerScaleOnZoom: enableContainerScale,
+                          containerScaleMax: containerScaleMax,
+                          containerScaleZoomRange: containerScaleZoomRange,
+                          reverseZoomEffectBorderRadius: 12,
+                          pointer: const PointerZoomOptions(
+                            requiresModifier: true,
+                            smoothing: 0.4,
+                          ),
+                        ),
+                        zoomController: zoomController,
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

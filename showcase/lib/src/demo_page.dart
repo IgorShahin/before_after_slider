@@ -4,7 +4,6 @@ import 'platform/demo_platform_profile.dart';
 import 'sections/control_panel.dart';
 import 'sections/demo_card.dart';
 import 'sections/header_section.dart';
-import 'sections/info_section.dart';
 import 'state/demo_controller.dart';
 
 class DemoPage extends StatefulWidget {
@@ -51,8 +50,6 @@ class _DemoPageState extends State<DemoPage> {
                         profile: profile,
                         isWide: isWide,
                       ),
-                      const SizedBox(height: 18),
-                      InfoSection(profile: profile),
                     ],
                   ),
                 ),
@@ -79,47 +76,44 @@ class _DemoScene extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final card = ListenableBuilder(
-      listenable: controller,
+      listenable: controller.showcaseListenable,
       builder: (context, _) {
-        return DemoCard(
-          profile: profile,
-          progress: controller.progress,
-          zoomController: controller.zoomController,
-          showLabels: controller.showLabels,
-          labelBehavior: controller.labelBehavior,
-          dragMode: controller.dragMode,
-          sliderOrientation: controller.sliderOrientation,
-          enableDoubleTapZoom: controller.enableDoubleTapZoom,
-          enableContainerScale: controller.enableContainerScale,
-          containerScaleMax: controller.containerScaleMax,
-          containerScaleZoomRange: controller.containerScaleZoomRange,
+        return RepaintBoundary(
+          child: DemoCard(
+            profile: profile,
+            progress: controller.progress,
+            zoomController: controller.zoomController,
+            showLabels: controller.showLabels.value,
+            labelBehavior: controller.labelBehavior.value,
+            dragMode: controller.dragMode.value,
+            sliderOrientation: controller.sliderOrientation.value,
+            enableDoubleTapZoom: controller.enableDoubleTapZoom.value,
+            enableContainerScale: controller.enableContainerScale.value,
+            containerScaleMax: controller.containerScaleMax,
+            containerScaleZoomRange: controller.containerScaleZoomRange,
+          ),
         );
       },
     );
 
-    final panel = ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        return ControlPanel(
-          profile: profile,
-          progress: controller.progress,
-          onResetZoom: controller.resetZoom,
-          showLabels: controller.showLabels,
-          onShowLabelsChanged: controller.setShowLabels,
-          enableDoubleTapZoom: controller.enableDoubleTapZoom,
-          onEnableDoubleTapZoomChanged: controller.setEnableDoubleTapZoom,
-          enableContainerScale: controller.enableContainerScale,
-          onEnableContainerScaleChanged: controller.setEnableContainerScale,
-          containerScalePreset: controller.containerScalePreset,
-          onContainerScalePresetChanged: controller.applyContainerScalePreset,
-          dragMode: controller.dragMode,
-          onDragModeChanged: controller.setDragMode,
-          sliderOrientation: controller.sliderOrientation,
-          onSliderOrientationChanged: controller.setSliderOrientation,
-          labelBehavior: controller.labelBehavior,
-          onLabelBehaviorChanged: controller.setLabelBehavior,
-        );
-      },
+    final panel = RepaintBoundary(
+      child: ControlPanel(
+        profile: profile,
+        progress: controller.progress,
+        onResetZoom: controller.resetZoom,
+        showLabels: controller.showLabels,
+        onShowLabelsChanged: controller.setShowLabels,
+        enableDoubleTapZoom: controller.enableDoubleTapZoom,
+        onEnableDoubleTapZoomChanged: controller.setEnableDoubleTapZoom,
+        enableContainerScale: controller.enableContainerScale,
+        onEnableContainerScaleChanged: controller.setEnableContainerScale,
+        dragMode: controller.dragMode,
+        onDragModeChanged: controller.setDragMode,
+        sliderOrientation: controller.sliderOrientation,
+        onSliderOrientationChanged: controller.setSliderOrientation,
+        labelBehavior: controller.labelBehavior,
+        onLabelBehaviorChanged: controller.setLabelBehavior,
+      ),
     );
 
     if (isWide) {

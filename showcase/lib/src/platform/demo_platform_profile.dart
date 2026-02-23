@@ -49,12 +49,6 @@ class DemoPlatformProfile {
 
   bool get isWideLayout => screenWidth >= 980 && !isMobile;
 
-  String get title {
-    if (isWeb) return 'Web Demo Showcase';
-    if (isDesktop) return 'Desktop Demo Showcase';
-    return 'Mobile Demo Showcase';
-  }
-
   String get platformBadge {
     if (isWeb) return 'Web';
     if (isDesktop) return 'Desktop';

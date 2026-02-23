@@ -2,7 +2,6 @@ import 'package:before_after_slider/before_after_slider.dart';
 import 'package:flutter/material.dart';
 
 import '../platform/demo_platform_profile.dart';
-import '../state/demo_controller.dart';
 
 class ControlPanel extends StatelessWidget {
   const ControlPanel({
@@ -16,8 +15,6 @@ class ControlPanel extends StatelessWidget {
     required this.onEnableDoubleTapZoomChanged,
     required this.enableContainerScale,
     required this.onEnableContainerScaleChanged,
-    required this.containerScalePreset,
-    required this.onContainerScalePresetChanged,
     required this.dragMode,
     required this.onDragModeChanged,
     required this.sliderOrientation,
@@ -29,19 +26,17 @@ class ControlPanel extends StatelessWidget {
   final DemoPlatformProfile profile;
   final ValueNotifier<double> progress;
   final VoidCallback onResetZoom;
-  final bool showLabels;
+  final ValueNotifier<bool> showLabels;
   final ValueChanged<bool> onShowLabelsChanged;
-  final bool enableDoubleTapZoom;
+  final ValueNotifier<bool> enableDoubleTapZoom;
   final ValueChanged<bool> onEnableDoubleTapZoomChanged;
-  final bool enableContainerScale;
+  final ValueNotifier<bool> enableContainerScale;
   final ValueChanged<bool> onEnableContainerScaleChanged;
-  final ContainerScalePreset containerScalePreset;
-  final ValueChanged<ContainerScalePreset> onContainerScalePresetChanged;
-  final SliderDragMode dragMode;
+  final ValueNotifier<SliderDragMode> dragMode;
   final ValueChanged<SliderDragMode?> onDragModeChanged;
-  final SliderOrientation sliderOrientation;
+  final ValueNotifier<SliderOrientation> sliderOrientation;
   final ValueChanged<SliderOrientation> onSliderOrientationChanged;
-  final LabelBehavior labelBehavior;
+  final ValueNotifier<LabelBehavior> labelBehavior;
   final ValueChanged<LabelBehavior?> onLabelBehaviorChanged;
 
   @override
@@ -84,7 +79,7 @@ class ControlPanel extends StatelessWidget {
               height: 1.35,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           ValueListenableBuilder<double>(
             valueListenable: progress,
             builder: (context, value, _) {
@@ -111,127 +106,121 @@ class ControlPanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           const Divider(height: 1),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             'Slider orientation',
             style: theme.textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
-          SegmentedButton<SliderOrientation>(
-            segments: const [
-              ButtonSegment<SliderOrientation>(
-                value: SliderOrientation.horizontal,
-                icon: Icon(Icons.swap_horiz),
-                label: Text('Horizontal'),
-              ),
-              ButtonSegment<SliderOrientation>(
-                value: SliderOrientation.vertical,
-                icon: Icon(Icons.swap_vert),
-                label: Text('Vertical'),
-              ),
-            ],
-            selected: <SliderOrientation>{sliderOrientation},
-            onSelectionChanged: (selection) =>
-                onSliderOrientationChanged(selection.first),
-          ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<SliderDragMode>(
-            initialValue: dragMode,
-            decoration: const InputDecoration(
-              labelText: 'Slider drag mode',
-              border: OutlineInputBorder(),
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: SliderDragMode.fullOverlay,
-                child: Text('fullOverlay'),
-              ),
-              DropdownMenuItem(
-                value: SliderDragMode.thumbOnly,
-                child: Text('thumbOnly'),
-              ),
-            ],
-            onChanged: onDragModeChanged,
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<LabelBehavior>(
-            initialValue: labelBehavior,
-            decoration: const InputDecoration(
-              labelText: 'Label behavior',
-              border: OutlineInputBorder(),
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: LabelBehavior.staticOverlaySafe,
-                child: Text('staticOverlaySafe'),
-              ),
-              DropdownMenuItem(
-                value: LabelBehavior.attachedToContent,
-                child: Text('attachedToContent'),
-              ),
-            ],
-            onChanged: onLabelBehaviorChanged,
-          ),
-          const SizedBox(height: 8),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Show labels'),
-            value: showLabels,
-            onChanged: onShowLabelsChanged,
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Enable double-tap zoom'),
-            value: enableDoubleTapZoom,
-            onChanged: onEnableDoubleTapZoomChanged,
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Container scale on zoom'),
-            value: enableContainerScale,
-            onChanged: onEnableContainerScaleChanged,
-          ),
-          if (enableContainerScale) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Container scale preset',
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ChoiceChip(
-                  label: const Text('Subtle'),
-                  selected: containerScalePreset == ContainerScalePreset.subtle,
-                  onSelected: (_) => onContainerScalePresetChanged(
-                      ContainerScalePreset.subtle),
-                ),
-                ChoiceChip(
-                  label: const Text('Balanced'),
-                  selected:
-                      containerScalePreset == ContainerScalePreset.balanced,
-                  onSelected: (_) => onContainerScalePresetChanged(
-                    ContainerScalePreset.balanced,
+          ValueListenableBuilder<SliderOrientation>(
+            valueListenable: sliderOrientation,
+            builder: (context, value, _) {
+              return SegmentedButton<SliderOrientation>(
+                segments: const [
+                  ButtonSegment<SliderOrientation>(
+                    value: SliderOrientation.horizontal,
+                    icon: Icon(Icons.swap_horiz),
+                    label: Text('Horizontal'),
                   ),
-                ),
-                ChoiceChip(
-                  label: const Text('Aggressive'),
-                  selected:
-                      containerScalePreset == ContainerScalePreset.aggressive,
-                  onSelected: (_) => onContainerScalePresetChanged(
-                    ContainerScalePreset.aggressive,
+                  ButtonSegment<SliderOrientation>(
+                    value: SliderOrientation.vertical,
+                    icon: Icon(Icons.swap_vert),
+                    label: Text('Vertical'),
                   ),
+                ],
+                selected: <SliderOrientation>{value},
+                onSelectionChanged: (selection) =>
+                    onSliderOrientationChanged(selection.first),
+              );
+            },
+          ),
+          const SizedBox(height: 26),
+          ValueListenableBuilder<SliderDragMode>(
+            valueListenable: dragMode,
+            builder: (context, value, _) {
+              return DropdownButtonFormField<SliderDragMode>(
+                initialValue: value,
+                decoration: const InputDecoration(
+                  labelText: 'Slider drag mode',
+                  border: OutlineInputBorder(),
                 ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 12),
+                items: const [
+                  DropdownMenuItem(
+                    value: SliderDragMode.fullOverlay,
+                    child: Text('fullOverlay'),
+                  ),
+                  DropdownMenuItem(
+                    value: SliderDragMode.thumbOnly,
+                    child: Text('thumbOnly'),
+                  ),
+                ],
+                onChanged: onDragModeChanged,
+              );
+            },
+          ),
+          const SizedBox(height: 26),
+          ValueListenableBuilder<LabelBehavior>(
+            valueListenable: labelBehavior,
+            builder: (context, value, _) {
+              return DropdownButtonFormField<LabelBehavior>(
+                initialValue: value,
+                decoration: const InputDecoration(
+                  labelText: 'Label behavior',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: LabelBehavior.staticOverlaySafe,
+                    child: Text('staticOverlaySafe'),
+                  ),
+                  DropdownMenuItem(
+                    value: LabelBehavior.attachedToContent,
+                    child: Text('attachedToContent'),
+                  ),
+                ],
+                onChanged: onLabelBehaviorChanged,
+              );
+            },
+          ),
+          const SizedBox(height: 18),
+          ValueListenableBuilder<bool>(
+            valueListenable: showLabels,
+            builder: (context, value, _) {
+              return SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Show labels'),
+                value: value,
+                onChanged: onShowLabelsChanged,
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+          ValueListenableBuilder<bool>(
+            valueListenable: enableDoubleTapZoom,
+            builder: (context, value, _) {
+              return SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Enable double-tap zoom'),
+                value: value,
+                onChanged: onEnableDoubleTapZoomChanged,
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+          ValueListenableBuilder<bool>(
+            valueListenable: enableContainerScale,
+            builder: (context, value, _) {
+              return SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Container scale on zoom'),
+                value: value,
+                onChanged: onEnableContainerScaleChanged,
+              );
+            },
+          ),
+          const SizedBox(height: 16),
           _hintCard(profile: profile),
         ],
       ),
