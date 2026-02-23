@@ -1,5 +1,8 @@
-import 'package:before_after_slider_showcase/src/app.dart';
+// ignore_for_file: avoid_relative_lib_imports
+
 import 'package:flutter_test/flutter_test.dart';
+
+import '../lib/src/app.dart';
 
 void main() {
   testWidgets('renders showcase app', (tester) async {
