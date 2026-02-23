@@ -3,17 +3,20 @@ part of '../before_after.dart';
 extension _BeforeAfterGesturesX on _BeforeAfterState {
   static const double _containerScaleStartZoom = 1.0;
   static const double _containerScaleResponseFactor = 1.9;
-  static const double _containerScaleSmoothing = 0.16;
   static const double _webPointerZoomBoost = 1.85;
   static const double _desktopPanToZoomDamping = 0.58;
+  static const double _dragThreshold = 0.0005;
+  static const double _zoomBoostClampSteps = 10.0;
 
   double _targetContainerGrowScaleFromZoom(double zoom) {
     if (zoom <= _containerScaleStartZoom) return 1.0;
     final progress = ((zoom - _containerScaleStartZoom) /
             (_effectiveContainerScaleZoomRange * _containerScaleResponseFactor))
         .clamp(0.0, 1.0);
-    // Keep response slower than zoom, but with immediate start from first delta.
-    return 1.0 + (_effectiveContainerScaleMax - 1.0) * progress;
+    // Follow zoom continuously (no lag accumulation), while keeping
+    // container response softer than zoom itself.
+    final eased = Curves.easeOutCubic.transform(progress);
+    return 1.0 + (_effectiveContainerScaleMax - 1.0) * eased;
   }
 
   void _updateContainerScaleFromZoom() {
@@ -21,21 +24,8 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     final nextScale = _targetContainerGrowScaleFromZoom(
       _zoomController.effectiveZoom,
     );
-
-    // Start immediately with first zoom delta.
-    if (_containerVisualScaleTarget <= 1.0005 && nextScale > 1.0005) {
-      final immediate = 1.0 + (nextScale - 1.0) * 0.4;
-      _setContainerVisualScaleTarget(immediate);
-      return;
-    }
-
-    final smoothed = _containerVisualScaleTarget +
-        (nextScale - _containerVisualScaleTarget) * _containerScaleSmoothing;
-    if ((_containerVisualScaleTarget - smoothed).abs() > 0.0015) {
-      _setContainerVisualScaleTarget(smoothed);
-    } else if ((nextScale - 1.0).abs() < 0.0005 &&
-        _containerVisualScaleTarget != 1.0) {
-      _setContainerVisualScaleTarget(1.0);
+    if ((_containerVisualScaleTarget - nextScale).abs() > 0.0005) {
+      _setContainerVisualScaleTarget(nextScale);
     }
   }
 
@@ -64,8 +54,8 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
           ? ((visualScale - 1.0) / (maxScale - 1.0)).clamp(0.0, 1.0)
           : 1.0;
       final eased = Curves.easeInOutCubic.transform(progress);
-      width = lerpDouble(fittedWidth, fullSize.width, eased) ?? fittedWidth;
-      height = lerpDouble(fittedHeight, fullSize.height, eased) ?? fittedHeight;
+      width = fittedWidth + (fullSize.width - fittedWidth) * eased;
+      height = fittedHeight + (fullSize.height - fittedHeight) * eased;
 
       final isAtFullBounds = (width - fullSize.width).abs() < 0.5 &&
           (height - fullSize.height).abs() < 0.5;
@@ -89,13 +79,16 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
   }
 
   _VisualGeometry _currentVisualGeometry(Size fullSize) {
-    final visualScale = _hasContainerVisualScaleEffect
-        ? _containerVisualScaleTarget.clamp(
-            _minContainerVisualScale,
-            _maxContainerVisualScale,
-          )
-        : 1.0;
+    final visualScale = _currentVisualScale();
     return _visualGeometry(fullSize, visualScale);
+  }
+
+  double _currentVisualScale() {
+    if (!_hasContainerVisualScaleEffect) return 1.0;
+    return _containerVisualScaleTarget.clamp(
+      _minContainerVisualScale,
+      _maxContainerVisualScale,
+    );
   }
 
   Size _zoomViewportSize(_VisualGeometry visual, Size fallback) {
@@ -110,15 +103,9 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
   }
 
   void _updateProgress(double screenX, Size fullSize) {
-    final visualScale = _hasContainerVisualScaleEffect
-        ? _containerVisualScaleTarget.clamp(
-            _minContainerVisualScale,
-            _maxContainerVisualScale,
-          )
-        : 1.0;
-    final visual = _visualGeometry(fullSize, visualScale);
+    final visual = _currentVisualGeometry(fullSize);
     final next = ((screenX - visual.offsetX) / visual.width).clamp(0.0, 1.0);
-    if ((_progressNotifier.value - next).abs() > 0.0005) {
+    if ((_progressNotifier.value - next).abs() > _dragThreshold) {
       _progressNotifier.value = next;
       _queueProgressChangedCallback(next);
     }
@@ -129,13 +116,7 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     Size fullSize,
     double progress,
   ) {
-    final visualScale = _hasContainerVisualScaleEffect
-        ? _containerVisualScaleTarget.clamp(
-            _minContainerVisualScale,
-            _maxContainerVisualScale,
-          )
-        : 1.0;
-    final visual = _visualGeometry(fullSize, visualScale);
+    final visual = _currentVisualGeometry(fullSize);
     final dividerScreenX = visual.offsetX + progress * visual.width;
     final style = widget.overlayOptions.style;
     final thumbCenterY = style.verticalThumbMove
@@ -176,7 +157,7 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     final thumbSize = style.thumbSize;
     final dividerWidth = style.dividerWidth;
     final zone = _effectiveSliderHitZone;
-    const zoomBoost = 0.0;
+    final zoomBoost = _sliderZoomBoost(zone);
     final hitHalfWidth = math.max(
           thumbSize / 2,
           math.max(dividerWidth * 2, zone.minLineHalfWidth),
@@ -197,16 +178,26 @@ extension _BeforeAfterGesturesX on _BeforeAfterState {
     final style = widget.overlayOptions.style;
     final thumbSize = style.thumbSize;
     final zone = _effectiveSliderHitZone;
-    const zoomBoost = 0.0;
+    final zoomBoost = _sliderZoomBoost(zone);
     final hitRadius = math.max(thumbSize / 2, zone.minThumbRadius) + zoomBoost;
 
     final dx = (localPosition.dx - dividerScreenX).abs();
     final dy = (localPosition.dy - thumbCenterY).abs();
 
     if (style.thumbShape == BoxShape.circle) {
-      return math.sqrt(dx * dx + dy * dy) <= hitRadius;
+      final squaredDistance = dx * dx + dy * dy;
+      final squaredRadius = hitRadius * hitRadius;
+      return squaredDistance <= squaredRadius;
     }
     return dx <= hitRadius && dy <= hitRadius;
+  }
+
+  double _sliderZoomBoost(SliderHitZone zone) {
+    final zoomSteps = (_zoomController.effectiveZoom - 1.0).clamp(
+      0.0,
+      _zoomBoostClampSteps,
+    );
+    return (zoomSteps * zone.zoomBoostPerStep).clamp(0.0, zone.maxZoomBoost);
   }
 
   void _onScaleStart(ScaleStartDetails details) {

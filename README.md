@@ -1,38 +1,56 @@
 # before_after_slider
 
-Before/after comparison widget for Flutter with a draggable divider, zoom, pan,
-custom overlays, and label behavior control.
+<p align="center">
+  <a href="https://pub.dev/packages/before_after_slider"><img src="https://img.shields.io/pub/v/before_after_slider.svg" alt="pub version"></a>
+  <a href="https://pub.dev/packages/before_after_slider/score"><img src="https://img.shields.io/pub/likes/before_after_slider" alt="likes"></a>
+  <a href="https://pub.dev/packages/before_after_slider/score"><img src="https://img.shields.io/pub/popularity/before_after_slider" alt="popularity"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="license"></a>
+</p>
 
-Perfect for image editing previews, map/style comparisons, redesign demos, and
-any side-by-side state comparison UI.
+<p align="center">
+  <a href="https://igorshahin.github.io/before_after_slider/"><img src="https://img.shields.io/badge/Live%20Demo-Open%20Web%20Demo-1f6feb?style=for-the-badge" alt="Live Demo"></a>
+  <a href="https://github.com/IgorShahin/before_after_slider/tree/dev/example/lib/main.dart"><img src="https://img.shields.io/badge/Example-View%20Source-2ea44f?style=for-the-badge" alt="Example Source"></a>
+  <a href="https://github.com/IgorShahin/before_after_slider/issues"><img src="https://img.shields.io/badge/Support-Issues-orange?style=for-the-badge" alt="Issues"></a>
+</p>
+
+A production-ready Flutter widget for before/after comparison with smooth divider drag, zoom/pan gestures, and customizable labels and overlay.
+
+## Live Demo
+
+- Web demo: [Open in browser](https://igorshahin.github.io/before_after_slider/)
+- Example source: [example/lib/main.dart](example/lib/main.dart)
+- CI deploy workflow: [.github/workflows/deploy_web_demo.yml](.github/workflows/deploy_web_demo.yml)
+
+For forks, enable **GitHub Pages -> Build and deployment -> GitHub Actions**.
+
+## Preview
+
+| Before | After |
+| --- | --- |
+| ![before](example/assets/before.jpeg) | ![after](example/assets/after.jpeg) |
 
 ## Features
 
-- Compare two images with `BeforeAfter`
-- Compare any two widgets with `BeforeAfter`
-- Smooth drag gesture and full divider-line hit area
-- Pinch-to-zoom and pan gestures
-- Desktop zoom with Ctrl/Cmd + wheel at cursor position
-- Double-tap zoom toggle with smooth animation
-- Custom overlay style (`OverlayStyle`) or fully custom overlay builder
-- Grouped options API (`BeforeAfterZoomOptions`, `BeforeAfterLabelsOptions`, `BeforeAfterInteractionOptions`)
-- Toggle labels visibility with `showLabels`
-- Label behavior control with `LabelBehavior`
-- Select drag area with `sliderDragMode`
-- External `ZoomController` for programmatic control
-- Controlled/uncontrolled progress modes
+- Single universal widget: `BeforeAfter(beforeChild, afterChild)`
+- Works with images and arbitrary widgets
+- Controlled and uncontrolled progress modes
+- Pinch zoom + pan on mobile
+- Cmd/Ctrl + wheel zoom on desktop and web
+- Optional double-tap zoom
+- Grouped options API (`interaction`, `zoom`, `labels`, `overlay`)
+- External `ZoomController` support
 
 ## Platform Support
 
 | Android | iOS | Web | macOS | Windows | Linux |
 | --- | --- | --- | --- | --- | --- |
-| ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Yes | Yes | Yes | Yes | Yes | Yes |
 
 ## Installation
 
 ```yaml
 dependencies:
-  before_after_slider: ^2.0.0
+  before_after_slider: ^3.0.0
 ```
 
 ```bash
@@ -45,177 +63,182 @@ flutter pub get
 import 'package:before_after_slider/before_after_slider.dart';
 
 BeforeAfter(
-  beforeChild: const Image(image: AssetImage('assets/before.jpg')),
-  afterChild: const Image(image: AssetImage('assets/after.jpg')),
-)
-```
-
-## Usage
-
-### Image Comparison
-
-```dart
-BeforeAfter(
   beforeChild: const Image(
     image: AssetImage('assets/before.jpg'),
-    fit: BoxFit.contain,
-    alignment: Alignment.center,
+    fit: BoxFit.cover,
   ),
   afterChild: const Image(
     image: AssetImage('assets/after.jpg'),
-    fit: BoxFit.contain,
-    alignment: Alignment.center,
+    fit: BoxFit.cover,
   ),
-  progress: 0.5,
-  zoomOptions: const BeforeAfterZoomOptions(
-    enabled: true,
-    doubleTapZoomScale: 3.0,
-  ),
-  labelsOptions: const BeforeAfterLabelsOptions(
-    behavior: LabelBehavior.staticOverlaySafe,
-  ),
+)
+```
+
+## API Design
+
+`BeforeAfter` keeps top-level usage clean and groups behavior into dedicated options:
+
+- `interactionOptions` for dragging and hit zones
+- `zoomOptions` for zoom/pan/pointer settings
+- `labelsOptions` for label visibility and rendering
+- `overlayOptions` for style or custom overlay builder
+
+## Usage Recipes
+
+### Controlled slider
+
+```dart
+class _MyPageState extends State<MyPage> {
+  double progress = 0.5;
+
+  @override
+  Widget build(BuildContext context) {
+    return BeforeAfter(
+      beforeChild: const Image(image: AssetImage('assets/before.jpg'), fit: BoxFit.cover),
+      afterChild: const Image(image: AssetImage('assets/after.jpg'), fit: BoxFit.cover),
+      progress: progress,
+      onProgressChanged: (value) => setState(() => progress = value),
+    );
+  }
+}
+```
+
+### Full interactive setup
+
+```dart
+BeforeAfter(
+  beforeChild: const Image(image: AssetImage('assets/before.jpg'), fit: BoxFit.cover),
+  afterChild: const Image(image: AssetImage('assets/after.jpg'), fit: BoxFit.cover),
+
   interactionOptions: const BeforeAfterInteractionOptions(
     sliderDragMode: SliderDragMode.fullOverlay,
+    sliderHitZone: SliderHitZone(
+      minLineHalfWidth: 18,
+      minThumbRadius: 30,
+    ),
   ),
+
+  zoomOptions: const BeforeAfterZoomOptions(
+    enabled: true,
+    pointer: PointerZoomOptions(
+      requiresModifier: true,
+      smoothing: 0.4,
+    ),
+    enableDoubleTapZoom: true,
+    doubleTapZoomScale: 3.0,
+  ),
+
+  labelsOptions: BeforeAfterLabelsOptions(
+    behavior: LabelBehavior.attachedToContent,
+    beforeBuilder: (_) => const Text('Before'),
+    afterBuilder: (_) => const Text('After'),
+  ),
+
   overlayOptions: const BeforeAfterOverlayOptions(
     style: OverlayStyle(
       dividerWidth: 2,
       thumbSize: 40,
     ),
   ),
-  onProgressChanged: (value) {
-    // 0.0 .. 1.0
-  },
 )
 ```
 
-### Widget Comparison
+### Custom overlay
 
-```dart
-BeforeAfter(
-  beforeChild: Container(color: const Color(0xFFDCEBFF)),
-  afterChild: Container(color: const Color(0xFFFFECD8)),
-  zoomOptions: const BeforeAfterZoomOptions(enabled: true),
-  labelsOptions: const BeforeAfterLabelsOptions(
-    behavior: LabelBehavior.staticOverlaySafe,
-  ),
-)
-```
-
-### Zoom Controller
-
-```dart
-final controller = ZoomController();
-
-BeforeAfter(
-  beforeChild: const Image(image: AssetImage('assets/before.jpg')),
-  afterChild: const Image(image: AssetImage('assets/after.jpg')),
-  zoomController: controller,
-);
-
-// Programmatic reset:
-controller.reset();
-```
-
-## API At A Glance
-
-### Core Widgets
-
-`BeforeAfter` supports:
-
-- `progress` (controlled mode)
-- `onProgressChanged`, `onProgressStart`, `onProgressEnd`
-- `interactionOptions` (`BeforeAfterInteractionOptions`)
-- `zoomOptions` (`BeforeAfterZoomOptions`)
-- `labelsOptions` (`BeforeAfterLabelsOptions`)
-- `viewportAspectRatio` / `autoViewportAspectRatioFromImage`
-- `contentOrder`
-- `overlayOptions` (`BeforeAfterOverlayOptions`)
-- `zoomController`
-
-`zoomOptions.desktop.requiresModifier` uses platform-specific keys by default:
-- macOS: `Cmd`
-- Windows/Linux: `Ctrl`
-
-Example:
 ```dart
 BeforeAfter(
   beforeChild: ...,
   afterChild: ...,
-  zoomOptions: const BeforeAfterZoomOptions(
-    desktop: DesktopZoomOptions(
-      requiresModifier: true,
-      smoothing: 0.4,
-    ),
+  overlayOptions: BeforeAfterOverlayOptions(
+    builder: (size, position) {
+      return Stack(
+        children: [
+          Positioned(
+            left: position.dx,
+            top: 0,
+            bottom: 0,
+            child: const VerticalDivider(width: 2, color: Colors.white),
+          ),
+        ],
+      );
+    },
   ),
 )
 ```
 
-### Slider Drag Mode
-
-- `SliderDragMode.fullOverlay` (default)  
-  Drag starts from divider line or thumb.
-- `SliderDragMode.thumbOnly`  
-  Drag starts only from thumb/icon area.
-
-### Label Behavior
-
-- `LabelBehavior.staticOverlaySafe` (default)  
-  Labels stay static and render above the slider overlay.
-- `LabelBehavior.attachedToContent`  
-  Labels attach to each side and are clipped by the divider.
-
-`fixedLabels` is still supported for backward compatibility but deprecated.
-
-## Migration From 1.x
-
-`2.0.0` contains a breaking API change.
-
-- Removed: `BeforeAfterImage`
-- Removed: `BeforeAfterLayout`
-- Use: `BeforeAfter(beforeChild: ..., afterChild: ...)`
-
-### Before (1.x)
-
-```dart
-BeforeAfterImage(
-  beforeImage: const AssetImage('assets/before.jpg'),
-  afterImage: const AssetImage('assets/after.jpg'),
-)
-
-BeforeAfterLayout(
-  beforeChild: Container(color: Colors.red),
-  afterChild: Container(color: Colors.blue),
-)
-```
-
-### After (2.x)
+### Auto viewport ratio from image
 
 ```dart
 BeforeAfter(
+  autoViewportAspectRatioFromImage: true,
   beforeChild: const Image(image: AssetImage('assets/before.jpg')),
   afterChild: const Image(image: AssetImage('assets/after.jpg')),
 )
+```
+
+Notes:
+- `viewportAspectRatio` has higher priority than auto mode.
+- Auto mode currently reads ratio from direct `Image` children.
+
+### Programmatic zoom control
+
+```dart
+final zoomController = ZoomController();
 
 BeforeAfter(
-  beforeChild: Container(color: Colors.red),
-  afterChild: Container(color: Colors.blue),
+  beforeChild: ...,
+  afterChild: ...,
+  zoomController: zoomController,
+)
+
+zoomController.reset();
+```
+
+## Desktop and Web Controls
+
+If `PointerZoomOptions.requiresModifier = true`:
+
+- macOS: hold `Cmd` and use wheel/scroll
+- Windows/Linux/Web: hold `Ctrl` and use wheel/scroll
+
+## Migration
+
+### 2.x -> 3.x
+
+`3.x` finalized grouped options in `BeforeAfter`.
+
+Before:
+
+```dart
+BeforeAfter(
+  beforeChild: ...,
+  afterChild: ...,
+  overlayStyle: const OverlayStyle(...),
+  enableProgressWithTouch: true,
+  enableZoom: true,
 )
 ```
 
-## Example App
+After:
 
-Interactive demo app is included in:
+```dart
+BeforeAfter(
+  beforeChild: ...,
+  afterChild: ...,
+  interactionOptions: const BeforeAfterInteractionOptions(
+    enableProgressWithTouch: true,
+  ),
+  zoomOptions: const BeforeAfterZoomOptions(
+    enabled: true,
+  ),
+  overlayOptions: const BeforeAfterOverlayOptions(
+    style: OverlayStyle(...),
+  ),
+)
+```
 
-`example/lib/main.dart`
+### 1.x -> 2.x
 
-## Contributing
-
-Issues and pull requests are welcome:
-
-- Repository: <https://github.com/IgorShahin/before_after_slider>
-- Issues: <https://github.com/IgorShahin/before_after_slider/issues>
-
-## License
-
-See `LICENSE`.
+- Removed `BeforeAfterImage`
+- Removed `BeforeAfterLayout`
+- Unified API in `BeforeAfter`

@@ -1,3 +1,30 @@
+## 3.0.0
+
+### Breaking
+- `BeforeAfter` now uses grouped options:
+  - `interactionOptions`
+  - `zoomOptions`
+  - `labelsOptions`
+  - `overlayOptions`
+- Removed legacy top-level params (`enableProgressWithTouch`, `enableZoom`, `overlayStyle`, legacy labels/overlay params, `fixedLabels`).
+
+### Added
+- Desktop/web pointer cursor customization.
+- `autoViewportAspectRatioFromImage` when `viewportAspectRatio` is not provided.
+- Integration tests and drag/zoom benchmark scenarios (`example/integration_test`).
+
+### Fixed
+- Slider drag conflict while panning zoomed content.
+- Pan bounds clamping to avoid visible blank background.
+- Desktop/web pointer zoom consistency.
+
+### Performance
+- Reduced gesture/render rebuild pressure on hot paths.
+- Optimized image stream reuse for auto viewport ratio flow.
+
+### Migration
+- Upgrade notes: see `README.md` (`Migration` section).
+
 ## 2.0.0
 
 - BREAKING: removed `BeforeAfterImage` and `BeforeAfterLayout`.
